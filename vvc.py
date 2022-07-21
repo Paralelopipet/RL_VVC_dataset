@@ -4,6 +4,12 @@ import importlib
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from envs.env import VVCEnv
+import copy
+from enum import Enum
+class Mode(Enum):
+    OFFLINE = 1
+    ONLINE = 2
+    TEST = 3
 
 from algos.replay import ReplayBuffer
 
@@ -45,7 +51,7 @@ def offline_vvc(config):
     replay = ReplayBuffer(replay_size=config['replay_size'],
                           seed=config['seed'])
     env = _env_setup(config)
-    env.reset(offline=True)
+    env.reset(Mode.OFFLINE)
     _data2replay(env, replay, scale_reward)
     agent = _agent_setup(config, env)
 
@@ -67,17 +73,51 @@ def _max_volt_vio(v):
     v_vio = max(v_vio_max, v_vio_min)
     return v_vio
 
+def test_vvc(offline_rec):
+
+    # make copy of the whole offline env and reply buffer
+    # cant use original objects because of the correlation with online data
+    env = copy.deepcopy(offline_rec['env'])
+    replay = copy.deepcopy(offline_rec['replay'])
+
+    # set env for testing
+    env.reset(Mode.TEST)
+
+    reward_diff = []
+    v_max_vio = []
+
+    return env, replay, reward_diff, v_max_vio
+
+def do_test_step(env, agent, replay, scale_reward):
+        s = env.state
+        a = agent.act_deterministic(torch.from_numpy(s)[None, :])
+        s_next, reward, done, info = env.step(a)
+
+        replay.add(state=torch.from_numpy(s),
+                   action=torch.from_numpy(a),
+                   reward=torch.from_numpy(np.array([reward * scale_reward])),
+                   next_state=torch.from_numpy(s_next),
+                   done=done)
+
+        v_rl = info['v']
+
+        return reward, v_rl
+
 
 def online_vvc(config, offline_rec):
+
     agent = offline_rec['agent']
     env = offline_rec['env']
     replay = offline_rec['replay']
 
     scale_reward = config['algo']['scale_reward']
 
-    env.reset(offline=False)
+    env.reset(Mode.ONLINE)
     reward_diff = []
     v_max_vio = []
+
+    # setup test environment
+    test_env, test_replay, test_reward_diff, test_v_max_vio = test_vvc(offline_rec)
 
     for iter in tqdm(range(env.len_online - 1), desc="Online training"):
 
@@ -94,9 +134,17 @@ def online_vvc(config, offline_rec):
 
         v_rl = info['v']
 
+        #train reward and max v
         reward_diff.append(reward - info['baseline_reward'])
         v_max_vio.append(_max_volt_vio(v_rl))
 
+        # test reward and max v
+        test_reward, test_v_rl = do_test_step(test_env, agent, test_replay, scale_reward)
+        test_reward_diff.append(test_reward - info['baseline_reward'])
+        test_v_max_vio.append(_max_volt_vio(test_v_rl))        
+
     online_res = {'reward_diff (r - rbaseline)': np.array(reward_diff),
                   'max voltage violation': np.array(v_max_vio)}
-    return online_res
+    test_res = {'reward_diff (r - rbaseline)': np.array(test_reward_diff),
+                  'max voltage violation': np.array(test_v_max_vio)}
+    return online_res, test_res

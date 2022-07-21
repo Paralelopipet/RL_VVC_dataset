@@ -2,11 +2,12 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 import pickle
 import numpy as np
+import latex
 
 rc('font', **{'family': 'sans-serif',
               'sans-serif': ['Helvetica'],
               'size': 12})
-rc('text', usetex=True)
+rc('text', usetex=False)
 
 
 def smooth(y, box_pts):
@@ -17,26 +18,38 @@ def smooth(y, box_pts):
 
 
 def plot_res(envs, algos, metric, smoothing,
-             ylabel, xlabel):
+             ylabel, xlabel, time_stamps):
 
     fig, axes = plt.subplots(nrows=1, ncols=len(envs), figsize=(4.*len(envs), 4.))
 
-    for ax, env in enumerate(envs):
+    for ax, (time_stamp, env) in enumerate(list(zip(time_stamps, envs))):
         res_all = []
         for a in algos:
-            with open('./res/data/{}_{}.pkl'.format(env, a), 'rb') as f:
+            with open('./res/data/{}_{}{}.pkl'.format(env, a, time_stamp), 'rb') as f:
                 res_all.append(pickle.load(f))
 
-        v_all = []
+        v_all_online = []
+        v_all_test = []
         for res in res_all:
-            if res[metric]:
-                v_all.append(np.array(res[metric]))
+            if res['online_{}'.format(metric)]:
+                v_all_online.append(np.array(res['online_{}'.format(metric)]))
             else:
-                v_all.append([])
+                v_all_online.append([])
+            if res['test_{}'.format(metric)]:
+                v_all_test.append(np.array(res['test_{}'.format(metric)]))
+            else:
+                v_all_test.append([])
 
-        for i, v_each in enumerate(v_all):
+        for i, v_each in enumerate(v_all_online):
             if isinstance(v_each, np.ndarray):
-                axes[ax].plot(smooth(np.percentile(v_each, q=50, axis=0), smoothing), label=algos[i])
+                axes[ax].plot(smooth(np.percentile(v_each, q=50, axis=0), smoothing), label='online_{}'.format(algos[i]))
+                axes[ax].fill_between(x=np.arange(v_each.shape[1] - smoothing + 1),
+                                      y1=smooth(np.percentile(v_each, q=10, axis=0), smoothing),
+                                      y2=smooth(np.percentile(v_each, q=90, axis=0), smoothing), alpha=0.4)
+        # print testing
+        for i, v_each in enumerate(v_all_test):
+            if isinstance(v_each, np.ndarray):
+                axes[ax].plot(smooth(np.percentile(v_each, q=50, axis=0), smoothing), label='test_{}'.format(algos[i]))
                 axes[ax].fill_between(x=np.arange(v_each.shape[1] - smoothing + 1),
                                       y1=smooth(np.percentile(v_each, q=10, axis=0), smoothing),
                                       y2=smooth(np.percentile(v_each, q=90, axis=0), smoothing), alpha=0.4)

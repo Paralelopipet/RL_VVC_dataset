@@ -4,6 +4,11 @@ import cmath
 import opendssdirect as dss
 from collections import defaultdict
 from .env_utils import load_info
+from enum import Enum
+class Mode(Enum):
+    OFFLINE = 1
+    ONLINE = 2
+    TEST = 3
 
 
 class VVCEnv:
@@ -11,22 +16,26 @@ class VVCEnv:
                  env='13',
                  state_option=1,
                  reward_option=1,
-                 offline_split=0.7,
-                 online_split=0.3):
+                 offline_split=0.5,
+                 online_split=0.3,
+                 test_split = 0.2):
         self.env_name = str(env)
         self.state_option = str(state_option)
         self.reward_option = str(reward_option)
         assert offline_split > 0.0 and offline_split < 1.0, "'offline_split' must be in (0.0, 1.0)"
         assert online_split > 0.0 and online_split < 1.0, "'online_split' must be in (0.0, 1.0)"
-        sum_split = offline_split + online_split
-        assert sum_split > 0.0 and sum_split <= 1.0, "'offline_split' + 'online_split' must be in (0.0, 1.0]"
+        assert test_split > 0.0 and test_split < 1.0, "'test_split' must be in (0.0, 1.0)"
+        sum_split = offline_split + online_split + test_split
+        assert sum_split > 0.0 and sum_split <= 1.0, "'offline_split' + 'online_split' + 'test_split' must be in (0.0, 1.0]"
         self.offline_split = offline_split
         self.online_split = online_split
+        self.test_split = test_split
 
         # offline data & online data size
         self.len_offline = round(27649 * self.offline_split)
         self.len_online = round(27649 * self.online_split)
-        self.len_total = self.len_offline + self.len_online
+        self.len_test = round(27649 * self.test_split)
+        self.len_total = self.len_offline + self.len_online + self.test_split
 
         # circuit model & raw ami data
         if self.env_name == '13':
@@ -91,14 +100,15 @@ class VVCEnv:
         self.state = None
         self.action_prev = None
 
-    def reset(self, offline=True):
+    def reset(self, enum):
         # if offline = True, set the global time to the beginning of the full dataset;
         # otherwise set the global time to the beginning of the online dataset
-        if offline:
+        if enum.value == Mode.OFFLINE.value:
             self.global_time = 1
-        else:
+        elif enum.value == Mode.ONLINE.value:
             self.global_time = max(self.len_offline, 1)
-
+        elif enum.value == Mode.TEST.value:
+            self.global_time = max(self.len_offline + self.len_online, 1)
         if self.state_option == '3':
             self.global_time = max(self.global_time, 48)
 
@@ -185,8 +195,11 @@ class VVCEnv:
             dss.run_command('Set Controlmode=OFF')
             dss.Solution.Solve()
 
+            # determine whether solution converged
+            # if it did not large penalty is given
             if not dss.Solution.Converged():
                 info['PF converge'] = False
+                info['not_converged_counter'] = info['not_converged_counter'] + 1
             else:
                 # voltage profile
                 # ref.1: https://sourceforge.net/p/electricdss/discussion/861977/thread/a53badb5/
