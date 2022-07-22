@@ -19,7 +19,8 @@ def _env_setup(config):
                   config['state_option'],
                   config['reward_option'],
                   config['offline_split'],
-                  config['online_split'])
+                  config['online_split'],
+                  config['test_split'])
 
 
 def _agent_setup(config, env):
@@ -46,7 +47,7 @@ def _data2replay(env, replay, scale_reward):
 
 def offline_vvc(config):
     scale_reward = config['algo']['scale_reward']
-    RL_steps = config['algo']['training_steps']
+    RL_steps = config['algo']['offline_training_steps']
 
     replay = ReplayBuffer(replay_size=config['replay_size'],
                           seed=config['seed'])
@@ -73,7 +74,7 @@ def _max_volt_vio(v):
     v_vio = max(v_vio_max, v_vio_min)
     return v_vio
 
-def test_vvc(offline_rec):
+def test_setup(offline_rec):
 
     # make copy of the whole offline env and reply buffer
     # cant use original objects because of the correlation with online data
@@ -84,11 +85,17 @@ def test_vvc(offline_rec):
     env.reset(Mode.TEST)
 
     reward_diff = []
+    average_reward_diff = []
     v_max_vio = []
+    average_v_max_vio = []
 
-    return env, replay, reward_diff, v_max_vio
+    return env, replay, reward_diff, average_reward_diff, v_max_vio, average_v_max_vio
 
-def do_test_step(env, agent, replay, scale_reward):
+def test_vvc(env, agent, replay, scale_reward):
+    reward_diff = []
+    v_max_vio = []
+    env.reset(Mode.TEST)
+    for iter in tqdm(range(env.len_test - 1), desc="Testing"):
         s = env.state
         a = agent.act_deterministic(torch.from_numpy(s)[None, :])
         s_next, reward, done, info = env.step(a)
@@ -101,7 +108,9 @@ def do_test_step(env, agent, replay, scale_reward):
 
         v_rl = info['v']
 
-        return reward, v_rl
+        reward_diff.append(reward - info['baseline_reward'])
+        v_max_vio.append(_max_volt_vio(v_rl))
+    return reward_diff, v_max_vio
 
 
 def online_vvc(config, offline_rec):
@@ -112,39 +121,57 @@ def online_vvc(config, offline_rec):
 
     scale_reward = config['algo']['scale_reward']
 
-    env.reset(Mode.ONLINE)
+    # number of epochs to be trained
+    num_epochs = config['algo']['online_training_steps']
+    
     reward_diff = []
+    average_reward_diff = []
     v_max_vio = []
+    average_v_max_vio = []
 
     # setup test environment
-    test_env, test_replay, test_reward_diff, test_v_max_vio = test_vvc(offline_rec)
+    test_env, test_replay, test_reward_diff, test_average_reward_diff, \
+        test_v_max_vio, test_average_max_vio = test_setup(offline_rec)
 
-    for iter in tqdm(range(env.len_online - 1), desc="Online training"):
+    for epoch in tqdm(range(num_epochs), desc="Online training"):
+        env.reset(Mode.ONLINE)
+        test_env.reset(Mode.TEST)
+        for iter in tqdm(range(env.len_online), desc="Online training_epoch{}".format(epoch)):
 
-        s = env.state
-        a = agent.act_probabilistic(torch.from_numpy(s)[None, :])
-        s_next, reward, done, info = env.step(a)
+            s = env.state
+            a = agent.act_probabilistic(torch.from_numpy(s)[None, :])
+            s_next, reward, done, info = env.step(a)
 
-        replay.add(state=torch.from_numpy(s),
-                   action=torch.from_numpy(a),
-                   reward=torch.from_numpy(np.array([reward * scale_reward])),
-                   next_state=torch.from_numpy(s_next),
-                   done=done)
-        agent.update(replay)
+            replay.add(state=torch.from_numpy(s),
+                    action=torch.from_numpy(a),
+                    reward=torch.from_numpy(np.array([reward * scale_reward])),
+                    next_state=torch.from_numpy(s_next),
+                    done=done)
+            agent.update(replay)
 
-        v_rl = info['v']
+            v_rl = info['v']
 
-        #train reward and max v
-        reward_diff.append(reward - info['baseline_reward'])
-        v_max_vio.append(_max_volt_vio(v_rl))
+            #train reward and max v
+            reward_diff.append(reward - info['baseline_reward'])
+            v_max_vio.append(_max_volt_vio(v_rl))
 
-        # test reward and max v
-        test_reward, test_v_rl = do_test_step(test_env, agent, test_replay, scale_reward)
-        test_reward_diff.append(test_reward - info['baseline_reward'])
-        test_v_max_vio.append(_max_volt_vio(test_v_rl))        
+        average_v_max_vio.append(np.average(v_max_vio[-env.len_online+1]))
+        average_reward_diff.append(np.average(reward_diff[-env.len_online+1]))
 
+        # do test
+        epoch_test_reward_diff, epoch_test_v_max_vio = test_vvc(test_env, agent, test_replay, scale_reward)
+        # append test results
+        test_reward_diff = test_reward_diff + epoch_test_reward_diff
+        test_average_reward_diff.append(np.average(epoch_test_reward_diff))
+        test_v_max_vio = test_v_max_vio + epoch_test_v_max_vio
+        test_average_max_vio.append(np.average(epoch_test_v_max_vio))
+        
     online_res = {'reward_diff (r - rbaseline)': np.array(reward_diff),
-                  'max voltage violation': np.array(v_max_vio)}
-    test_res = {'reward_diff (r - rbaseline)': np.array(test_reward_diff),
-                  'max voltage violation': np.array(test_v_max_vio)}
+                  'average_reward_diff (r - rbaseline)': np.array(average_reward_diff),
+                  'max voltage violation': np.array(v_max_vio),
+                  'average max voltage violation': np.array(average_v_max_vio),}
+    test_res = {  'reward_diff (r - rbaseline)': np.array(test_reward_diff),
+                  'average_reward_diff (r - rbaseline)': np.array(test_average_reward_diff),
+                  'max voltage violation': np.array(test_v_max_vio),
+                  'average max voltage violation': np.array(test_average_max_vio)}
     return online_res, test_res

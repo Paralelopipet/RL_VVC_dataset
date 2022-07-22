@@ -1,5 +1,7 @@
 from collections import defaultdict
 import pickle
+
+from sklearn import metrics
 from vvc import offline_vvc, online_vvc
 from plot import plot_res
 from datetime import datetime
@@ -7,8 +9,9 @@ from datetime import datetime
 # envs = ['13', '123', '8500']
 envs = ['13']
 # algos = ['dqn', 'sac']
-algos = ['dqn']
-seeds = [0, 1, 2]
+algos = ['sac']
+#seeds = [0, 1, 2]
+seeds = [0]
 
 # save timestamp
 timestamp = True
@@ -37,7 +40,8 @@ for env in envs:
                 "batch_size": 64,
                 "lr": 0.0005,
                 "smooth": 0.99,
-                "training_steps": 100,
+                "offline_training_steps": 100,
+                "online_training_steps": 2,
             }
         elif algo == 'dqn':
             config['algo'] = {
@@ -51,7 +55,8 @@ for env in envs:
                 "eps_len": 500,
                 "eps_max": 1.0,
                 "eps_min": 0.02,
-                "training_steps": 100,
+                "offline_training_steps": 100,
+                "online_training_steps": 2,
             }
         else:
             break
@@ -79,16 +84,25 @@ for env in envs:
                                                 dt_string), 'wb') as f:
             pickle.dump(res, f)
 
-smoothing = 20  # smooth the curves by moving average
+smoothing = 100  # smooth the curves by moving average # default_smooth = 20
 # metric = 'online_reward_diff (r - rbaseline)'
-metric = 'max voltage violation'
+metrics = ['max voltage violation', 'average max voltage violation', 'reward_diff (r - rbaseline)', 'average_reward_diff (r - rbaseline)']
 
 ylabel={'reward_diff (r - rbaseline)': 'Reward(RL) - Reward(baseline)',
-        'max voltage violation': 'Maximum voltage violation (volt)'}
-plot_res(envs=['13', '123', '8500'],
-         algos=['dqn'],
-         metric=metric,
-         smoothing=smoothing,
-         ylabel=ylabel[metric],
-         xlabel='Timestamp (half-hour)',
-         time_stamps = now)
+        'average_reward_diff (r - rbaseline)': 'Average Reward(RL) - Reward(baseline)',
+        'max voltage violation': 'Maximum voltage violation (volt)',
+        'average max voltage violation': 'Average Maximum voltage violation (volt)'}
+
+for metric in metrics:
+    
+    if 'average' in metric:
+        smooth_param = 1
+    else:
+        smooth_param = smoothing
+    plot_res(envs=['13', '123', '8500'],
+            algos=algos,
+            metric=metric,
+            smoothing=smooth_param,
+            ylabel=ylabel[metric],
+            xlabel='Timestamp (half-hour)',
+            time_stamps = now)
