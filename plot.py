@@ -6,7 +6,7 @@ import numpy as np
 rc('font', **{'family': 'sans-serif',
               'sans-serif': ['Helvetica'],
               'size': 12})
-rc('text', usetex=True)
+rc('text', usetex=False)
 
 
 def smooth(y, box_pts):
@@ -83,16 +83,26 @@ def plot_res1(envs, algos, metric, smoothing, ylabel, xlabel, time_stamps):
 
 def plot_res2(test_vvc_res, envs, algos, xlabel, smoothing):
     metric = ['tap position oltc', 'status capacitors', 'voltage']
-
     fig, axes = plt.subplots(nrows=len(metric), ncols=1, figsize=(4. * len(metric), 4. * len(metric)))
 
+    tapPositions = test_vvc_res['tap position oltc']
+    capacitorStatuses = test_vvc_res['status capacitors']
+    voltages = test_vvc_res['voltage']
+    maxVoltages = voltages[:,0]
+    minVoltages = voltages[:,1]
+    axes[0].plot(minVoltages, label="Min voltage")
+    axes[0].plot(maxVoltages, label="Max voltage")
+
+    # to plot for the next metrics, just use axes[1] and aces[2]...
+
+    """
     for ax, value in enumerate(metric):
-        for i, v_each in enumerate(test_vvc_res):
+        for key, v_each in test_vvc_res:
+            print(v_each)
             if isinstance(v_each, np.ndarray):
                 axes[ax].plot(smooth(np.percentile(v_each, q=50, axis=0), smoothing), label=algos[i])
 
         axes[ax].grid(True, alpha=0.1)
-
         if ax == 0:
             axes[ax].set_ylabel('tap position oltc')
         if ax == 1:
@@ -100,6 +110,7 @@ def plot_res2(test_vvc_res, envs, algos, xlabel, smoothing):
         if ax == 2:
             axes[ax].set_ylabel('voltage (p.u.)')
             axes[ax].set_xlabel(xlabel)
+    """
 
     plt.legend()
     plt.savefig('./res/figs/bus{}_{}.pdf'.format(envs, metric), bbox_inches='tight')

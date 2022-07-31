@@ -226,6 +226,6 @@ def test_vvc_verbose(online_res):
                     #'active power load': np.array(p_load),
                     #'reactive power load': np.array(q_load)}
 
-    print(test_vvc_res)
+    #print(test_vvc_res)
 
     return test_vvc_res
