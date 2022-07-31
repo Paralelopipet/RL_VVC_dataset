@@ -5,6 +5,8 @@ import opendssdirect as dss
 from collections import defaultdict
 from .env_utils import load_info
 from enum import Enum
+
+
 class Mode(Enum):
     OFFLINE = 1
     ONLINE = 2
@@ -18,7 +20,7 @@ class VVCEnv:
                  reward_option=1,
                  offline_split=0.5,
                  online_split=0.3,
-                 test_split = 0.2):
+                 test_split=0.2):
         self.env_name = str(env)
         self.state_option = str(state_option)
         self.reward_option = str(reward_option)
@@ -41,13 +43,15 @@ class VVCEnv:
         if self.env_name == '13':
             dss.run_command('Redirect envs/dss_13/IEEE13Nodeckt.dss')
             self.basekVA = 5000.
-            self.ami_data = genfromtxt('./data/processed/first_2897_ami_aggto_580.csv', delimiter=',', max_rows=self.len_total)
+            self.ami_data = genfromtxt('./data/processed/first_2897_ami_aggto_580.csv', delimiter=',',
+                                       max_rows=self.len_total)
             self.ami_data = self.ami_data / (np.mean(self.ami_data, axis=0) * 2.0)
             # the 13 bus feeder is highly loaded, an extra 2.0 is divided
         elif self.env_name == '123':
             dss.run_command('Redirect envs/dss_123/IEEE123Master.dss')
             self.basekVA = 5000.
-            self.ami_data = genfromtxt('./data/processed/first_2897_ami_aggto_580.csv', delimiter=',', max_rows=self.len_total)
+            self.ami_data = genfromtxt('./data/processed/first_2897_ami_aggto_580.csv', delimiter=',',
+                                       max_rows=self.len_total)
             self.ami_data = self.ami_data / (np.mean(self.ami_data, axis=0) * 1.0)
         elif self.env_name == '8500':
             dss.run_command('Redirect envs/dss_8500/Master.dss')
@@ -63,21 +67,27 @@ class VVCEnv:
         self.cap_names = dss.Capacitors.AllNames()
 
         # vvc data (offline & online)
-        self.loss = genfromtxt('./data/processed/{}/loss.csv'.format(self.env_name), delimiter=',', max_rows=self.len_total)[:, None]
-        self.substation_pq = genfromtxt('./data/processed/{}/substation_pq.csv'.format(self.env_name), delimiter=',', max_rows=self.len_total)
-        self.load = genfromtxt('./data/processed/{}/load.csv'.format(self.env_name), delimiter=',', max_rows=self.len_total)
-        self.volt = genfromtxt('./data/processed/{}/volt.csv'.format(self.env_name), delimiter=',', max_rows=self.len_total)
-        self.ltc_tap = genfromtxt('./data/processed/{}/tap.csv'.format(self.env_name), delimiter=',', max_rows=self.len_total)
+        self.loss = genfromtxt('./data/processed/{}/loss.csv'.format(self.env_name), delimiter=',',
+                               max_rows=self.len_total)[:, None]
+        self.substation_pq = genfromtxt('./data/processed/{}/substation_pq.csv'.format(self.env_name), delimiter=',',
+                                        max_rows=self.len_total)
+        self.load = genfromtxt('./data/processed/{}/load.csv'.format(self.env_name), delimiter=',',
+                               max_rows=self.len_total)
+        self.volt = genfromtxt('./data/processed/{}/volt.csv'.format(self.env_name), delimiter=',',
+                               max_rows=self.len_total)
+        self.ltc_tap = genfromtxt('./data/processed/{}/tap.csv'.format(self.env_name), delimiter=',',
+                                  max_rows=self.len_total)
         if len(self.ltc_tap.shape) == 1:
             self.ltc_tap = self.ltc_tap[:, None]
-        self.cap_status = genfromtxt('./data/processed/{}/status.csv'.format(self.env_name), delimiter=',', max_rows=self.len_total)
+        self.cap_status = genfromtxt('./data/processed/{}/status.csv'.format(self.env_name), delimiter=',',
+                                     max_rows=self.len_total)
 
         self.load_avg = np.average(self.load[:self.len_offline, :], axis=0)
 
         # RL info
         self.dims_time = (168 * 2, 24 * 2)  # period of time. e.g. for weekly pattern use 168 * 2 for half-hourly data
-        self.dims_ltc = (33, ) * len(self.reg_names)
-        self.dims_cap = (2, ) * len(self.cap_names)
+        self.dims_ltc = (33,) * len(self.reg_names)
+        self.dims_cap = (2,) * len(self.cap_names)
         self.dims_action = self.dims_ltc + self.dims_cap
         self.dim_substation_pq = self.substation_pq.shape[1]
         self.dim_load = self.load.shape[1]
@@ -91,62 +101,64 @@ class VVCEnv:
             self.coef_loss = 0.0
 
         if self.state_option in ('1', '3'):
-            self.dim_state = self.dim_substation_pq + self.dim_load + len(self.dims_action) + 2*len(self.dims_time)
+            self.dim_state = self.dim_substation_pq + self.dim_load + len(self.dims_action) + 2 * len(self.dims_time)
             # the 2 in the last term is for cos AND sin encoding of periodic variable
-        elif self.state_option in ('2', ):
-            self.dim_state = self.dim_substation_pq + len(self.dims_action) + 2*len(self.dims_time)
+        elif self.state_option in ('2',):
+            self.dim_state = self.dim_substation_pq + len(self.dims_action) + 2 * len(self.dims_time)
 
         self.global_time = None
         self.state = None
         self.action_prev = None
 
-    def reset(self, enum):
+    def reset(self, enum, start_time=1):
         # if offline = True, set the global time to the beginning of the full dataset;
-        # otherwise set the global time to the beginning of the online dataset
+        # elif set the global time to the beginning of the online dataset
+        # elif set the global time to the beginning of the test dataset
         if enum.value == Mode.OFFLINE.value:
-            self.global_time = 1
+            self.global_time = start_time
         elif enum.value == Mode.ONLINE.value:
-            self.global_time = max(self.len_offline, 1)
+            self.global_time = max(self.len_offline + start_time - 1, 1)
         elif enum.value == Mode.TEST.value:
-            self.global_time = max(self.len_offline + self.len_online, 1)
+            self.global_time = max(self.len_offline + self.len_online + start_time - 1, 1)
+
         if self.state_option == '3':
             self.global_time = max(self.global_time, 48)
 
         if self.state_option == '1':
             self.state = np.concatenate([
-                self.substation_pq[self.global_time-1, :] / (self.basekVA / 3.),
+                self.substation_pq[self.global_time - 1, :] / (self.basekVA / 3.),
                 self.load[self.global_time, :] / self.load_avg,
             ])
         elif self.state_option == '2':
             self.state = np.concatenate([
-                self.substation_pq[self.global_time-1, :] / (self.basekVA / 3.),
+                self.substation_pq[self.global_time - 1, :] / (self.basekVA / 3.),
             ])
         elif self.state_option == '3':
             self.state = np.concatenate([
-                self.substation_pq[self.global_time-1, :] / (self.basekVA / 3.),
+                self.substation_pq[self.global_time - 1, :] / (self.basekVA / 3.),
                 self.load[self.global_time - 48, :] / self.load_avg,
             ])
         self.state = np.concatenate([self.state,
-                                     self.ltc_tap[self.global_time-1, :],
-                                     self.cap_status[self.global_time-1, :],
+                                     self.ltc_tap[self.global_time - 1, :],
+                                     self.cap_status[self.global_time - 1, :],
                                      np.array([np.cos(2 * np.pi * (self.global_time / ii)) for ii in self.dims_time]),
                                      np.array([np.sin(2 * np.pi * (self.global_time / ii)) for ii in self.dims_time])
                                      ])
-        self.action_prev = np.concatenate((self.ltc_tap[self.global_time-1, :],
-                                           self.cap_status[self.global_time-1, :]))
+        self.action_prev = np.concatenate((self.ltc_tap[self.global_time - 1, :],
+                                           self.cap_status[self.global_time - 1, :]))
         return self.state
 
     @staticmethod
     def tap_to_tappu(tap):
         # from [0, 32] to [0.9, 1.1]
-        pu_per_ltc_tap = 5/8/100  # 5/8 % voltage rule
+        pu_per_ltc_tap = 5 / 8 / 100  # 5/8 % voltage rule
         tap_pu = 1.0 + (tap - 16) * pu_per_ltc_tap
         return tap_pu
 
     @staticmethod
     def tappu_to_tap(tap_pu):
         # from [0.9, 1.1] to [0, 32]
-        pu_per_ltc_tap = 5/8/100
+        pu_per_ltc_tap = 5 / 8 / 100
         tap = (tap_pu - 1.0) / pu_per_ltc_tap + 16
         return tap
 
@@ -160,6 +172,7 @@ class VVCEnv:
         return np.array(res)
 
     def step(self, action=None):
+        global load_kw
         info = defaultdict(lambda: None)
 
         if action is None:
@@ -173,23 +186,29 @@ class VVCEnv:
         else:
             # set load
             if self.env_name == '8500':
-                load_kw = [val * self.ami_data[self.global_time, i] for i, (key, val) in enumerate(self.load_base.items())]
+                load_kw = [val * self.ami_data[self.global_time, i] for i, (key, val) in
+                           enumerate(self.load_base.items())]
                 for i, (key, val) in enumerate(self.load_base.items()):
                     dss.run_command('Load.{}.kW={}'.format(key, load_kw[i]))
             elif self.env_name in ('13', '123'):
-                load_kw = [val[0] * self.ami_data[self.global_time, i] for i, (key, val) in enumerate(self.load_base.items())]
-                load_kvar = [val[1] * self.ami_data[self.global_time, i] for i, (key, val) in enumerate(self.load_base.items())]
+                load_kw = [val[0] * self.ami_data[self.global_time, i] for i, (key, val) in
+                           enumerate(self.load_base.items())]
+                load_kvar = [val[1] * self.ami_data[self.global_time, i] for i, (key, val) in
+                             enumerate(self.load_base.items())]
                 for i, (key, val) in enumerate(self.load_base.items()):
                     dss.run_command('Load.{}.kW={}'.format(key, load_kw[i]))
                 for i, (key, val) in enumerate(self.load_base.items()):
                     dss.run_command('Load.{}.kvar={}'.format(key, load_kvar[i]))
+
+            info['load_kw'] = load_kw
+            info['load_kvar'] = load_kvar
 
             # set ltc tap and cap status (OpenDSS manual. pp-117)
             for i, reg in enumerate(self.reg_names):
                 tap = self.tap_to_tappu(action[i])
                 dss.run_command('transformer.{}.Taps=[1.0 {}]'.format(reg, tap))
             for i, cap in enumerate(self.cap_names):
-                dss.run_command('Capacitor.{}.status={}'.format(cap, action[i+len(self.reg_names)]))
+                dss.run_command('Capacitor.{}.status={}'.format(cap, action[i + len(self.reg_names)]))
 
             # solve
             dss.run_command('Set Controlmode=OFF')
@@ -255,7 +274,7 @@ class VVCEnv:
                 reward = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
                             loss / self.basekVA * self.coef_loss)
-        else:
+        else:  # if PF is not converge put  *10 penalty
             if self.reward_option in ('1', '2'):
                 reward = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             0.05 * self.dim_volt * self.coef_volt +
@@ -271,19 +290,21 @@ class VVCEnv:
         baseline_volt_pu = baseline_volt_120 / 120.0
         baseline_loss = self.loss[self.global_time, 0]
         if self.reward_option in ('1', '2'):
-            info['baseline_reward'] = - (np.sum(np.round(np.abs(baseline_action - self.action_prev))) * self.coef_switching +
-                                         np.sum(np.abs(baseline_volt_pu - 1.0)) * self.coef_volt +
-                                         baseline_loss / self.basekVA * self.coef_loss)
+            info['baseline_reward'] = - (
+                    np.sum(np.round(np.abs(baseline_action - self.action_prev))) * self.coef_switching +
+                    np.sum(np.abs(baseline_volt_pu - 1.0)) * self.coef_volt +
+                    baseline_loss / self.basekVA * self.coef_loss)
         elif self.reward_option in ('3', '4'):
-            info['baseline_reward'] = - (np.sum(np.round(np.abs(baseline_action - self.action_prev))) * self.coef_switching +
-                                         np.sum(np.logical_or(baseline_volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
-                                         baseline_loss / self.basekVA * self.coef_loss)
+            info['baseline_reward'] = - (
+                    np.sum(np.round(np.abs(baseline_action - self.action_prev))) * self.coef_switching +
+                    np.sum(np.logical_or(baseline_volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
+                    baseline_loss / self.basekVA * self.coef_loss)
 
         # next state
         self.global_time += 1
 
         if not info['PF converge']:
-            substation_pq = self.substation_pq[self.global_time-1, :]
+            substation_pq = self.substation_pq[self.global_time - 1, :]
         if self.state_option == '1':
             self.state = np.concatenate([
                 substation_pq / (self.basekVA / 3.),
@@ -296,7 +317,7 @@ class VVCEnv:
         elif self.state_option == '3':
             self.state = np.concatenate([
                 substation_pq / (self.basekVA / 3.),
-                self.load[self.global_time-48, :] / self.load_avg,
+                self.load[self.global_time - 48, :] / self.load_avg,
             ])
         self.state = np.concatenate([self.state,
                                      action,
@@ -320,4 +341,3 @@ class VVCEnv:
             done = False
 
         return self.state, reward, done, info
-

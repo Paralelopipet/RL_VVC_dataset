@@ -38,10 +38,10 @@ class Agent:
         self.V_tar = VCriticNet(dim_state=self.dim_state,
                                 dims_hidden_neurons=self.dims_hidden_neurons)
 
-        self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
-        self.optimizer_Q1 = torch.optim.Adam(self.Q1.parameters(), lr=self.lr)
-        self.optimizer_Q2 = torch.optim.Adam(self.Q2.parameters(), lr=self.lr)
-        self.optimizer_V = torch.optim.Adam(self.V.parameters(), lr=self.lr)
+        self.optimizer_actor = torch.optim.AdamW(self.actor.parameters(), lr=self.lr)
+        self.optimizer_Q1 = torch.optim.AdamW(self.Q1.parameters(), lr=self.lr)
+        self.optimizer_Q2 = torch.optim.AdamW(self.Q2.parameters(), lr=self.lr)
+        self.optimizer_V = torch.optim.AdamW(self.V.parameters(), lr=self.lr)
 
     def update(self, replay):
         t = replay.sample(self.batch_size)
