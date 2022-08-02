@@ -199,8 +199,8 @@ def test_vvc_verbose(online_res):
     capacitor_status = []
     oltc_position = []
     max_min_voltage = []
-    p_load = []
-    q_load = []
+    feeder_kW = []
+    feeder_kVar = []
 
     for i in range(len_step):
         s = env.state
@@ -210,21 +210,25 @@ def test_vvc_verbose(online_res):
         action = a
 
         voltage = info['v']
+
         load_kW = info['load_kw']
         load_kVar = info['load_kvar']
+        aggregated_load_kW = sum(load_kW)
+        aggregated_load_kVar = sum(load_kVar)
 
         num_of_oltc = len(env.reg_names)
         oltc_position.append(action[:num_of_oltc])
         capacitor_status.append(action[num_of_oltc:])
         max_min_voltage.append(_max_min_volt(voltage))
-        p_load.append(load_kW)
-        q_load.append(load_kVar)
+        feeder_kW.append(aggregated_load_kW)
+        feeder_kVar.append(aggregated_load_kVar)
 
     test_vvc_res = {'tap position oltc': np.array(oltc_position),
                     'status capacitors': np.array(capacitor_status),
                     'voltage': np.array(max_min_voltage),
-                    'active power load': np.array(p_load),
-                    'reactive power load': np.array(q_load)}
+                    'active power feeder': np.array(feeder_kW),
+                    'reactive power feeder': np.array(feeder_kVar),
+                    'len_step': len_step}
 
     print(test_vvc_res)
 

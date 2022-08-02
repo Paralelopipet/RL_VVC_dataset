@@ -82,7 +82,7 @@ def plot_res1(envs, algos, metric, smoothing, ylabel, xlabel, time_stamps):
 
 
 def plot_res2(test_vvc_res, env, algos):
-    metric = ['tap position oltc', 'status capacitors', 'voltage', 'load']
+    metric = ['tap position oltc', 'status capacitors', 'voltage', 'load feeder']
     fig, axes = plt.subplots(nrows=len(metric), ncols=1, figsize=(4. * len(metric), 4. * len(metric)))
 
     if env == '13':
@@ -90,8 +90,8 @@ def plot_res2(test_vvc_res, env, algos):
         voltages = test_vvc_res['voltage']
         maxVoltages = voltages[:, 0]
         minVoltages = voltages[:, 1]
-        axes[0].plot(minVoltages, label='Min voltage')
-        axes[0].plot(maxVoltages, label='Max voltage')
+        axes[0].plot(minVoltages, label='Min')
+        axes[0].plot(maxVoltages, label='Max')
 
         capacitorStatuses = test_vvc_res['status capacitors']
         axes[1].plot(capacitorStatuses, label=['CB1', 'CB2'])
@@ -99,10 +99,11 @@ def plot_res2(test_vvc_res, env, algos):
         tapPositions = test_vvc_res['tap position oltc']
         axes[2].plot(tapPositions, label='OLTC1')
 
-        activeLoad = test_vvc_res['active power load']
-        reactiveLoad = test_vvc_res['reactive power load']
-        axes[3].plot(activeLoad)
-        axes[3].plot(reactiveLoad)
+        activePowerFeeder = test_vvc_res['active power feeder']
+        reactivePowerFeeder = test_vvc_res['reactive power feeder']
+        ind = np.arange(test_vvc_res['len_step'])
+        axes[3].bar(x=ind, height=activePowerFeeder, width=0.9, align='center', label='active power load')
+        axes[3].bar(x=ind, height=reactivePowerFeeder, width=0.9, align='center', label='reactive power load')
 
         axes[0].legend()
         axes[1].legend()
@@ -136,10 +137,11 @@ def plot_res2(test_vvc_res, env, algos):
         tapPositions = test_vvc_res['tap position oltc']
         axes[2].plot(tapPositions, label=['OLTC1', 'OLTC2', 'OLTC3', 'OLTC4', 'OLTC5'])
 
-        activeLoad = test_vvc_res['active power load']
-        reactiveLoad = test_vvc_res['reactive power load']
-        axes[3].plot(activeLoad)
-        axes[3].plot(reactiveLoad)
+        activePowerFeeder = test_vvc_res['active power feeder']
+        reactivePowerFeeder = test_vvc_res['reactive power feeder']
+        ind = np.arange(test_vvc_res['len_step'])
+        axes[3].bar(x=ind, height=activePowerFeeder, width=0.9, align='center', label='active power load')
+        axes[3].bar(x=ind, height=reactivePowerFeeder, width=0.9, align='center', label='reactive power load')
 
         axes[0].legend()
         axes[1].legend()
