@@ -82,10 +82,8 @@ for env in envs:
                 test_vvc_res = test_vvc_verbose(online_res)
                 # since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
                 plot_res2(test_vvc_res=test_vvc_res,
-                          envs=envs,
-                          algos=['dqn'],
-                          xlabel='Time (half-hour)',
-                          smoothing=0)
+                          env=env,
+                          algos=algos)
 
         if timestamp:
             dt_string = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")

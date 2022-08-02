@@ -81,37 +81,84 @@ def plot_res1(envs, algos, metric, smoothing, ylabel, xlabel, time_stamps):
     plt.show()
 
 
-def plot_res2(test_vvc_res, envs, algos, xlabel, smoothing):
-    metric = ['tap position oltc', 'status capacitors', 'voltage']
+def plot_res2(test_vvc_res, env, algos):
+    metric = ['tap position oltc', 'status capacitors', 'voltage', 'load']
     fig, axes = plt.subplots(nrows=len(metric), ncols=1, figsize=(4. * len(metric), 4. * len(metric)))
 
-    tapPositions = test_vvc_res['tap position oltc']
-    capacitorStatuses = test_vvc_res['status capacitors']
-    voltages = test_vvc_res['voltage']
-    maxVoltages = voltages[:,0]
-    minVoltages = voltages[:,1]
-    axes[0].plot(minVoltages, label="Min voltage")
-    axes[0].plot(maxVoltages, label="Max voltage")
+    if env == '13':
+        #print("13")
+        voltages = test_vvc_res['voltage']
+        maxVoltages = voltages[:, 0]
+        minVoltages = voltages[:, 1]
+        axes[0].plot(minVoltages, label='Min voltage')
+        axes[0].plot(maxVoltages, label='Max voltage')
 
-    # to plot for the next metrics, just use axes[1] and aces[2]...
+        capacitorStatuses = test_vvc_res['status capacitors']
+        axes[1].plot(capacitorStatuses, label=['CB1', 'CB2'])
 
-    """
-    for ax, value in enumerate(metric):
-        for key, v_each in test_vvc_res:
-            print(v_each)
-            if isinstance(v_each, np.ndarray):
-                axes[ax].plot(smooth(np.percentile(v_each, q=50, axis=0), smoothing), label=algos[i])
+        tapPositions = test_vvc_res['tap position oltc']
+        axes[2].plot(tapPositions, label='OLTC1')
 
-        axes[ax].grid(True, alpha=0.1)
-        if ax == 0:
-            axes[ax].set_ylabel('tap position oltc')
-        if ax == 1:
-            axes[ax].set_ylabel('status capacitors')
-        if ax == 2:
-            axes[ax].set_ylabel('voltage (p.u.)')
-            axes[ax].set_xlabel(xlabel)
-    """
+        activeLoad = test_vvc_res['active power load']
+        reactiveLoad = test_vvc_res['reactive power load']
+        axes[3].plot(activeLoad)
+        axes[3].plot(reactiveLoad)
+
+        axes[0].legend()
+        axes[1].legend()
+        axes[2].legend()
+        axes[3].legend()
+
+        axes[0].set_ylabel('voltage p.u.')
+        axes[1].set_ylabel('CB status')
+        axes[2].set_ylabel('OLTC tap position')
+        axes[3].set_ylabel('load (kW/kVar)')
+        axes[3].set_xlabel('Time (half-hour)')
+
+        axes[0].grid(True, axis='x', alpha=0.5)
+        axes[1].grid(True, axis='x', alpha=0.5)
+        axes[2].grid(True, axis='x', alpha=0.5)
+        axes[3].grid(True, axis='x', alpha=0.5)
+
+        axes[0].title.set_text('{} test bus'.format(env))
+
+    if env == '123':
+        #print("123")
+        voltages = test_vvc_res['voltage']
+        maxVoltages = voltages[:, 0]
+        minVoltages = voltages[:, 1]
+        axes[0].plot(minVoltages, label='Min')
+        axes[0].plot(maxVoltages, label='Max')
+
+        capacitorStatuses = test_vvc_res['status capacitors']
+        axes[1].plot(capacitorStatuses, label=['CB1', 'CB2', 'CB3', 'CB4'])
+
+        tapPositions = test_vvc_res['tap position oltc']
+        axes[2].plot(tapPositions, label=['OLTC1', 'OLTC2', 'OLTC3', 'OLTC4', 'OLTC5'])
+
+        activeLoad = test_vvc_res['active power load']
+        reactiveLoad = test_vvc_res['reactive power load']
+        axes[3].plot(activeLoad)
+        axes[3].plot(reactiveLoad)
+
+        axes[0].legend()
+        axes[1].legend()
+        axes[2].legend()
+        axes[3].legend()
+
+        axes[0].set_ylabel('voltage p.u.')
+        axes[1].set_ylabel('CB status')
+        axes[2].set_ylabel('OLTC tap position')
+        axes[3].set_ylabel('load (kW/kVar)')
+        axes[3].set_xlabel('Time (half-hour)')
+
+        axes[0].grid(True, axis='x', alpha=0.5)
+        axes[1].grid(True, axis='x', alpha=0.5)
+        axes[2].grid(True, axis='x', alpha=0.5)
+        axes[3].grid(True, axis='x', alpha=0.5)
+
+        axes[0].title.set_text('{} test bus'.format(env))
 
     plt.legend()
-    plt.savefig('./res/figs/bus{}_{}.pdf'.format(envs, metric), bbox_inches='tight')
+    plt.savefig('./res/figs/bus{}_VVC_Result.pdf'.format(env), bbox_inches='tight')
     plt.show()

@@ -194,7 +194,7 @@ def test_vvc_verbose(online_res):
 
     # set env for plotting test results
     env.reset(Mode.TEST, start_time=5330)
-    len_step = 24  # Because we need the results for 3 consecutive day while our dataset is half hour -> 2*72 =144
+    len_step = 48  # Because we need the results for 3 consecutive day while our dataset is half hour -> 2*72 =144
 
     capacitor_status = []
     oltc_position = []
@@ -210,22 +210,22 @@ def test_vvc_verbose(online_res):
         action = a
 
         voltage = info['v']
-        load_kw = info['load_kw']
-        load_kvar = info['load_kvar']
+        load_kW = info['load_kw']
+        load_kVar = info['load_kvar']
 
         num_of_oltc = len(env.reg_names)
         oltc_position.append(action[:num_of_oltc])
         capacitor_status.append(action[num_of_oltc:])
         max_min_voltage.append(_max_min_volt(voltage))
-        p_load.append(load_kw)
-        q_load.append(load_kvar)
+        p_load.append(load_kW)
+        q_load.append(load_kVar)
 
     test_vvc_res = {'tap position oltc': np.array(oltc_position),
                     'status capacitors': np.array(capacitor_status),
-                    'voltage': np.array(max_min_voltage)}
-                    #'active power load': np.array(p_load),
-                    #'reactive power load': np.array(q_load)}
+                    'voltage': np.array(max_min_voltage),
+                    'active power load': np.array(p_load),
+                    'reactive power load': np.array(q_load)}
 
-    #print(test_vvc_res)
+    print(test_vvc_res)
 
     return test_vvc_res
