@@ -29,7 +29,7 @@ class Agent:
                               dims_action=self.dims_action,
                               dims_hidden_neurons=self.dims_hidden_neurons)
 
-        self.optimizer_Q = torch.optim.Adam(self.Q.parameters(), lr=self.lr)
+        self.optimizer_Q = torch.optim.AdamW(self.Q.parameters(), lr=self.lr)
         self.gradient_step = 0
         self.exploration_step = 0
 
