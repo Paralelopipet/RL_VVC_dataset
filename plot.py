@@ -17,7 +17,7 @@ def smooth(y, box_pts):
 
 
 def plot_res1(envs, algos, metric, smoothing, ylabel, xlabel, time_stamps):
-    fig, axes = plt.subplots(nrows=len(envs), ncols=2, figsize=(4. * len(envs), 4. * len(envs)))
+    fig, axes = plt.subplots(nrows=max(len(envs),2), ncols=2, figsize=(4. * len(envs), 4. * len(envs)))
 
     for ax, (time_stamp, env) in enumerate(list(zip(time_stamps, envs))):
         res_all = []

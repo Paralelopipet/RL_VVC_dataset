@@ -95,7 +95,7 @@ class VVCEnv:
 
         self.coef_switching = 0.1
         self.coef_volt = 0.5
-        if self.reward_option in ('1', '3'):
+        if self.reward_option in ('1', '3', '5'):
             self.coef_loss = 1.0
         elif self.reward_option in ('2', '4'):
             self.coef_loss = 0.0
@@ -265,22 +265,27 @@ class VVCEnv:
                 info['PF converge'] = True
 
         # reward
+        reward_constraint = 0
         if info['PF converge']:
             if self.reward_option in ('1', '2'):
-                reward = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
+                reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             np.sum(np.abs(volt_pu - 1.0)) * self.coef_volt +
                             loss / self.basekVA * self.coef_loss)
             elif self.reward_option in ('3', '4'):
-                reward = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
+                reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
                             loss / self.basekVA * self.coef_loss)
+            elif self.reward_option in ('5'):
+                
+                reward_constraint = - np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt
+                reward_loss = - loss / self.basekVA * self.coef_loss
         else:  # if PF is not converge put  *10 penalty
             if self.reward_option in ('1', '2'):
-                reward = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
+                reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             0.05 * self.dim_volt * self.coef_volt +
                             1.0 * self.coef_loss) * 10.
             elif self.reward_option in ('3', '4'):
-                reward = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
+                reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             1.0 * self.dim_volt * self.coef_volt +
                             1.0 * self.coef_loss) * 10.
 
@@ -299,6 +304,10 @@ class VVCEnv:
                     np.sum(np.round(np.abs(baseline_action - self.action_prev))) * self.coef_switching +
                     np.sum(np.logical_or(baseline_volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
                     baseline_loss / self.basekVA * self.coef_loss)
+        elif self.reward_option in ('5'):
+            info['baseline_reward_loss'] = -baseline_loss / self.basekVA * self.coef_loss
+            info['baseline_reward_constraint'] = -np.sum(np.logical_or(baseline_volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt
+            info['baseline_reward'] = info['baseline_reward_loss'] + info['baseline_reward_constraint']
 
         # next state
         self.global_time += 1
@@ -340,4 +349,4 @@ class VVCEnv:
         else:
             done = False
 
-        return self.state, reward, done, info
+        return self.state, reward_loss, reward_constraint, done, info

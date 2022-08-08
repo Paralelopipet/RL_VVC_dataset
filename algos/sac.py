@@ -58,7 +58,7 @@ class Agent:
         # compute Q target and V target
         with torch.no_grad():
             action_onehot = int2D_to_grouponehot(indices=t.action.long(), depths=self.dims_action)
-            Q_target = t.reward + self.discount*(~t.done)*Vp
+            Q_target = t.reward_loss + self.discount*(~t.done)*Vp
             V_target = 0.75*torch.min(self.Q1(t.state, action_sample_onehot),
                                       self.Q2(t.state, action_sample_onehot)) + \
                        0.25*torch.max(self.Q1(t.state, action_sample_onehot),

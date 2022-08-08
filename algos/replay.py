@@ -4,7 +4,7 @@ import torch
 import numpy.random as nr
 
 
-Transitions = namedtuple('Transitions', ['state', 'action', 'reward', 'next_state', 'done'])
+Transitions = namedtuple('Transitions', ['state', 'action', 'reward_loss', 'reward_constraint', 'next_state', 'done'])
 
 
 class ReplayBuffer:
@@ -15,19 +15,22 @@ class ReplayBuffer:
         self.replay_size = replay_size
         self.state = deque([], maxlen=self.replay_size)
         self.action = deque([], maxlen=self.replay_size)
-        self.reward = deque([], maxlen=self.replay_size)
+        self.reward_loss = deque([], maxlen=self.replay_size)
+        self.reward_constraint = deque([], maxlen=self.replay_size)
         self.next_state = deque([], maxlen=self.replay_size)
         self.done = deque([], maxlen=self.replay_size)
 
     def add(self,
             state,
             action,
-            reward,
+            reward_loss,
+            reward_constraint,
             next_state,
             done: bool):
         self.state.append(state)
         self.action.append(action)
-        self.reward.append(reward)
+        self.reward_loss.append(reward_loss)
+        self.reward_constraint.append(reward_constraint)
         self.next_state.append(next_state)
         self.done.append(done)
 
@@ -49,7 +52,8 @@ class ReplayBuffer:
         t = Transitions
         t.state = torch.stack(list(map(self.state.__getitem__, idx)))
         t.action = torch.stack(list(map(self.action.__getitem__, idx)))
-        t.reward = torch.stack(list(map(self.reward.__getitem__, idx)))
+        t.reward_loss = torch.stack(list(map(self.reward_loss.__getitem__, idx)))
+        t.reward_constraint = torch.stack(list(map(self.reward_constraint.__getitem__, idx)))
         t.next_state = torch.stack(list(map(self.next_state.__getitem__, idx)))
         t.done = torch.tensor(list(map(self.done.__getitem__, idx)))[:, None]
         return t
@@ -57,6 +61,7 @@ class ReplayBuffer:
     def clear(self):
         self.state = deque([], maxlen=self.replay_size)
         self.action = deque([], maxlen=self.replay_size)
-        self.reward = deque([], maxlen=self.replay_size)
+        self.reward_loss = deque([], maxlen=self.replay_size)
+        self.reward_constraint = deque([], maxlen=self.replay_size)
         self.next_state = deque([], maxlen=self.replay_size)
         self.done = deque([], maxlen=self.replay_size)

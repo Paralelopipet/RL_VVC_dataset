@@ -5,7 +5,7 @@ from vvc import offline_vvc, online_vvc, test_vvc_verbose
 from plot import plot_res1, plot_res2
 from datetime import datetime
 
-envs = ['13', '123']
+envs = ['13']
 # envs = ['13']
 # algos = ['dqn', 'sac']
 algos = ['sac']
@@ -44,6 +44,23 @@ for env in envs:
                 "offline_training_steps": 100,
                 "online_training_steps": 2,
             }
+        elif algo == 'csac':
+            config['algo'] = {
+                "algo": "csac",
+                "dims_hidden_neurons": (120, 120),
+                "scale_reward": 5.0,
+                "discount": 0.95,
+                "alpha": .2,
+                "batch_size": 64,
+                "lr": 0.0005,
+                "smooth": 0.99,
+                "offline_training_steps": 100,
+                "online_training_steps": 2,
+                "lagrange_multiplier": 1,
+                "step_policy": 0.1,
+                "step_lagrange": 0.05
+            }
+            config['reward_option'] = 5
         elif algo == 'dqn':
             config['algo'] = {
                 "algo": "dqn",
@@ -78,12 +95,12 @@ for env in envs:
                 res['test_' + k].append(v)
             # test_vvc_verbose results
 
-            if seed == 0:
-                test_vvc_res = test_vvc_verbose(online_res)
-                # since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
-                plot_res2(test_vvc_res=test_vvc_res,
-                          env=env,
-                          algos=algos)
+            # if seed == 0:
+            #     test_vvc_res = test_vvc_verbose(online_res)
+            #     # since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
+            #     plot_res2(test_vvc_res=test_vvc_res,
+            #               env=env,
+            #               algos=algos)
 
         if timestamp:
             dt_string = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")

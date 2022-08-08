@@ -36,12 +36,13 @@ def _agent_setup(config, env):
 def _data2replay(env, replay, scale_reward):
     for iter in tqdm(range(env.len_offline), desc="Converting data to transition tuples"):
         s = env.state
-        s_next, reward, done, info = env.step()
+        s_next, reward_loss, reward_constraint, done, info = env.step()
         baseline_action = info['action']
 
         replay.add(state=torch.from_numpy(s),
                    action=torch.from_numpy(baseline_action),
-                   reward=torch.from_numpy(np.array([reward * scale_reward])),
+                   reward_loss=torch.from_numpy(np.array([reward_loss * scale_reward])),
+                   reward_constraint=torch.from_numpy(np.array([reward_constraint * scale_reward])),
                    next_state=torch.from_numpy(s_next),
                    done=done)
 
@@ -51,7 +52,8 @@ def offline_vvc(config):
     RL_steps = config['algo']['offline_training_steps']
 
     replay = ReplayBuffer(replay_size=config['replay_size'],
-                          seed=config['seed'])
+                              seed=config['seed'])
+
     env = _env_setup(config)
     env.reset(Mode.OFFLINE)
     _data2replay(env, replay, scale_reward)
@@ -107,11 +109,12 @@ def test_vvc(env, agent, replay, scale_reward):
     for iter in tqdm(range(env.len_test - 1), desc="Testing"):
         s = env.state
         a = agent.act_deterministic(torch.from_numpy(s)[None, :])
-        s_next, reward, done, info = env.step(a)
-
+        s_next, reward_loss, reward_constraint, done, info = env.step(a)
+        reward = reward_constraint + reward_loss
         replay.add(state=torch.from_numpy(s),
                    action=torch.from_numpy(a),
-                   reward=torch.from_numpy(np.array([reward * scale_reward])),
+                   reward_loss=torch.from_numpy(np.array([reward_loss * scale_reward])),
+                   reward_constraint=torch.from_numpy(np.array([reward_constraint * scale_reward])),
                    next_state=torch.from_numpy(s_next),
                    done=done)
 
@@ -147,11 +150,12 @@ def online_vvc(config, offline_rec):
         for iter in tqdm(range(env.len_online), desc="Online training_epoch{}".format(epoch)):
             s = env.state
             a = agent.act_probabilistic(torch.from_numpy(s)[None, :])
-            s_next, reward, done, info = env.step(a)
-
+            s_next, reward_loss, reward_constraint, done, info = env.step(a)
+            reward = reward_loss + reward_constraint
             replay.add(state=torch.from_numpy(s),
                        action=torch.from_numpy(a),
-                       reward=torch.from_numpy(np.array([reward * scale_reward])),
+                       reward_loss=torch.from_numpy(np.array([reward_loss * scale_reward])),
+                       reward_constraint=torch.from_numpy(np.array([reward_constraint * scale_reward])),
                        next_state=torch.from_numpy(s_next),
                        done=done)
             agent.update(replay)  # update NN parameters during online training (while interact with the environment)

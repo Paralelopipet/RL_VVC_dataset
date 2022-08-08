@@ -1,3 +1,4 @@
+from statistics import mean
 import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
@@ -57,7 +58,7 @@ class Agent:
         self.optimizer_Qc2 = torch.optim.Adam(self.Qc2.parameters(), lr=self.lr)
         self.optimizer_Vc = torch.optim.Adam(self.Vc.parameters(), lr=self.lr)
 
-        self.lagrange_multiplier = torch.zeros()
+        self.lagrange_multiplier = config['algo']['lagrange_multiplier']
 
     def update(self, replay):
         t = replay.sample(self.batch_size)
@@ -74,17 +75,22 @@ class Agent:
         # compute Q target and V target
         with torch.no_grad():
             action_onehot = int2D_to_grouponehot(indices=t.action.long(), depths=self.dims_action)
-            Q_target = t.reward + self.discount*(~t.done)*Vp
-            V_target = 0.75*torch.min(self.Q1(t.state, action_sample_onehot),
-                                      self.Q2(t.state, action_sample_onehot)) + \
-                       0.25*torch.max(self.Q1(t.state, action_sample_onehot),
+            Q_target = t.reward_loss - self.lagrange_multiplier * t.reward_constraint + self.discount*(~t.done)*Vp
+            Qc_target = t.reward_constraint + self.discount*(~t.done)*Vp
+            V_target = torch.min(self.Q1(t.state, action_sample_onehot),
+                                      self.Q2(t.state, action_sample_onehot)) - \
+                       self.alpha * log_action_sample_prob
+            Vc_target = torch.max(self.Q1(t.state, action_sample_onehot),
                                       self.Q2(t.state, action_sample_onehot)) - \
                        self.alpha * log_action_sample_prob
 
         # construct loss functions
         loss_Q1 = torch.mean((self.Q1(t.state, action_onehot) - Q_target) ** 2)
+        loss_Qc1 = torch.mean((self.Qc1(t.state, action_onehot) - Qc_target) ** 2)
         loss_Q2 = torch.mean((self.Q2(t.state, action_onehot) - Q_target) ** 2)
+        loss_Qc2 = torch.mean((self.Qc2(t.state, action_onehot) - Qc_target) ** 2)
         loss_V = torch.mean((self.V(t.state) - V_target) ** 2)
+        loss_Vc = torch.mean((self.Vc(t.state) - V_target) ** 2)
         with torch.no_grad():
             V = self.V(t.state)
             Q = self.Q1(t.state, action_sample_onehot)
@@ -99,17 +105,36 @@ class Agent:
         loss_Q1.backward()
         self.optimizer_Q1.step()
 
+        self.optimizer_Qc1.zero_grad()
+        loss_Qc1.backward()
+        self.optimizer_Qc1.step()
+
         self.optimizer_Q2.zero_grad()
         loss_Q2.backward()
         self.optimizer_Q2.step()
+
+        self.optimizer_Qc2.zero_grad()
+        loss_Qc2.backward()
+        self.optimizer_Qc2.step()
 
         self.optimizer_V.zero_grad()
         loss_V.backward()
         self.optimizer_V.step()
 
+        self.optimizer_Vc.zero_grad()
+        loss_Vc.backward()
+        self.optimizer_Vc.step()
+
+        # update V target and Vc target parameters
         with torch.no_grad():
             for p, p_tar in zip(self.V.parameters(), self.V_tar.parameters()):
                 p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+            for p, p_tar in zip(self.Vc.parameters(), self.Vc_tar.parameters()):
+                p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+
+        # update lagrange multiplier
+        self.lagrange_multiplier = self.lagrange_multiplier + torch.mean((self.Vc(t.state) - V_target) ** 2)
+        
 
     def sample_action_with_prob(self, state: torch.Tensor):
         prob_all = self.actor(state)
