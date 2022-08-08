@@ -5,17 +5,21 @@ from vvc import offline_vvc, online_vvc, test_vvc_verbose
 from plot import plot_res1, plot_res2
 from datetime import datetime
 
-envs = ['13']
+envs = ['13', '123']
 # envs = ['13']
 # algos = ['dqn', 'sac']
-algos = ['sac']
+algos = ['dqn', 'sac']
 # seeds = [0, 1, 2]
 seeds = [0]
 
 # save timestamp
 timestamp = True
 # time stamp
-now = [];
+now = ''
+if timestamp:
+    now = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+else:
+    now = ""
 
 for env in envs:
     for algo in algos:
@@ -102,14 +106,10 @@ for env in envs:
             #               env=env,
             #               algos=algos)
 
-        if timestamp:
-            dt_string = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
-        else:
-            dt_string = ""
-        now.append(dt_string)
+        
         with open('./res/data/{}_{}{}.pkl'.format(config['env'],
                                                   config['algo']['algo'],
-                                                  dt_string), 'wb') as f:
+                                                  now), 'wb') as f:
             pickle.dump(res, f)
             # res is  the object you want to pickle and the f is the file to which the object has to be saved.
 
@@ -136,4 +136,5 @@ for metric in metrics1:
               smoothing=smooth_param,
               ylabel=ylabel1[metric],
               xlabel='Time (half-hour)',
-              time_stamps=now)
+              time_stamp=now)
+

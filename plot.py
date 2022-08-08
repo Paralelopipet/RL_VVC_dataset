@@ -16,10 +16,10 @@ def smooth(y, box_pts):
     return y_smooth
 
 
-def plot_res1(envs, algos, metric, smoothing, ylabel, xlabel, time_stamps):
+def plot_res1(envs, algos, metric, smoothing, ylabel, xlabel, time_stamp):
     fig, axes = plt.subplots(nrows=max(len(envs),2), ncols=2, figsize=(4. * len(envs), 4. * len(envs)))
 
-    for ax, (time_stamp, env) in enumerate(list(zip(time_stamps, envs))):
+    for ax, env in enumerate(envs):
         res_all = []
         for a in algos:
             with open('./res/data/{}_{}{}.pkl'.format(env, a, time_stamp), 'rb') as f:

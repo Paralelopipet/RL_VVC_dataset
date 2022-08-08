@@ -38,7 +38,7 @@ class Agent:
 
         s = t.state
         a = t.action
-        r = t.reward
+        r = t.reward_loss
         sp = t.next_state
         done = t.done
 
