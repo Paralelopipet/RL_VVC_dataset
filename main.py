@@ -1,14 +1,14 @@
 from collections import defaultdict
 import pickle
 from sklearn import metrics
-from vvc import offline_vvc, online_vvc, test_vvc_verbose
+from vvc import offline_vvc, online_vvc, test_vvc_verbose, deleteAllTensorboardFiles
 from plot import plot_res1, plot_res2
 from datetime import datetime
 
-envs = ['13', '123']
+envs = ['13']
 # envs = ['13']
 # algos = ['dqn', 'sac']
-algos = ['dqn', 'sac']
+algos = ['sac', 'csac']
 # seeds = [0, 1, 2]
 seeds = [0]
 
@@ -21,6 +21,7 @@ if timestamp:
 else:
     now = ""
 
+deleteAllTensorboardFiles()
 for env in envs:
     for algo in algos:
         config = {
@@ -46,7 +47,7 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 2,
+                "online_training_steps": 5,
             }
         elif algo == 'csac':
             config['algo'] = {
@@ -59,10 +60,10 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 2,
-                "lagrange_multiplier": 1,
-                "step_policy": 0.1,
-                "step_lagrange": 0.05
+                "online_training_steps": 5,
+                "lagrange_multiplier": 1.0,
+                "step_policy": 1,
+                "step_lagrange": 1.0
             }
             config['reward_option'] = 5
         elif algo == 'dqn':
@@ -86,6 +87,9 @@ for env in envs:
         res = defaultdict(list)
         # The functionality of both dictionaries and defaultdict are almost same except for the fact that defaultdict
         # never raises a KeyError. It provides a default value for the key that does not exists like []
+
+        
+
         for seed in seeds:
             config['seed'] = seed
             offline_res = offline_vvc(config)

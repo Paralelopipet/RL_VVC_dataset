@@ -1,3 +1,4 @@
+import shutil
 import numpy as np
 import torch
 import importlib
@@ -5,8 +6,12 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from envs.env import VVCEnv
 import copy
+import os
+import glob
 from enum import Enum
 from algos.replay import ReplayBuffer
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 class Mode(Enum):
@@ -102,9 +107,16 @@ def test_setup(offline_rec):
     return env, replay, reward_diff, average_reward_diff, v_max_vio, average_v_max_vio
 
 
-def test_vvc(env, agent, replay, scale_reward):
+def test_vvc(env, agent, replay, scale_reward, config, epoch):
     reward_diff = []
     v_max_vio = []
+    reward_loss_diff = []
+    reward_constraint_diff = []
+
+    # tensorboard runnning parameter
+    tensor_running = 20
+
+    writer = SummaryWriter("log/test"+config['algo']['algo'])
     env.reset(Mode.TEST)
     for iter in tqdm(range(env.len_test - 1), desc="Testing"):
         s = env.state
@@ -122,6 +134,18 @@ def test_vvc(env, agent, replay, scale_reward):
 
         reward_diff.append(reward - info['baseline_reward'])
         v_max_vio.append(_max_volt_vio(v_rl))
+        if (config['algo']['algo'] == 'csac'):
+            reward_loss_diff.append(reward_loss - info['baseline_reward_loss'])
+            reward_constraint_diff.append(reward_constraint - info['baseline_reward_constraint'])
+
+        # add to tensorboard
+        if iter%tensor_running == 0:
+            if (config['algo']['algo'] == 'csac'):
+                writer.add_scalar('reward loss diff' ,np.mean(reward_loss_diff[-tensor_running:]), epoch*env.len_online+iter)
+                writer.add_scalar('reward constraint diff' , np.mean(reward_constraint_diff[-tensor_running:]), epoch*env.len_online+iter)
+            writer.add_scalar('reward' , np.mean(reward_diff[-tensor_running:]), epoch*env.len_online+iter)
+            writer.add_scalar('v max violation' , np.mean(v_max_vio[-tensor_running:]), epoch*env.len_online+iter)
+
     return reward_diff, v_max_vio
 
 
@@ -136,6 +160,8 @@ def online_vvc(config, offline_rec):
     num_epochs = config['algo']['online_training_steps']
 
     reward_diff = []
+    reward_loss_diff = []
+    reward_constraint_diff = []
     average_reward_diff = []
     v_max_vio = []
     average_v_max_vio = []
@@ -144,9 +170,15 @@ def online_vvc(config, offline_rec):
     test_env, test_replay, test_reward_diff, test_average_reward_diff, \
     test_v_max_vio, test_average_max_vio = test_setup(offline_rec)
 
+    # tensorboard runnning parameter
+    tensor_running = 20
+    writer = SummaryWriter("log/online"+config['algo']['algo'])
+
+    # train start
     for epoch in tqdm(range(num_epochs), desc="Online training"):
         env.reset(Mode.ONLINE)
         test_env.reset(Mode.TEST)
+        
         for iter in tqdm(range(env.len_online), desc="Online training_epoch{}".format(epoch)):
             s = env.state
             a = agent.act_probabilistic(torch.from_numpy(s)[None, :])
@@ -163,14 +195,25 @@ def online_vvc(config, offline_rec):
             v_rl = info['v']
 
             # train reward and max v
+            if config['algo']['algo'] == 'csac':
+                reward_loss_diff.append(reward_loss - info['baseline_reward_loss'])
+                reward_constraint_diff.append(reward_constraint - info['baseline_reward_constraint'])
             reward_diff.append(reward - info['baseline_reward'])
             v_max_vio.append(_max_volt_vio(v_rl))
+
+            # add to tensorboard
+            if iter%tensor_running == 0:
+                if (config['algo']['algo'] == 'csac'):
+                    writer.add_scalar('reward loss diff' ,np.mean(reward_loss_diff[-tensor_running:]), epoch*env.len_online+iter)
+                    writer.add_scalar('reward constraint diff' , np.mean(reward_constraint_diff[-tensor_running:]), epoch*env.len_online+iter)
+                writer.add_scalar('reward' , np.mean(reward_diff[-tensor_running:]), epoch*env.len_online+iter)
+                writer.add_scalar('v max violation' , np.mean(v_max_vio[-tensor_running:]), epoch*env.len_online+iter)
 
         average_v_max_vio.append(np.average(v_max_vio[-env.len_online + 1]))
         average_reward_diff.append(np.average(reward_diff[-env.len_online + 1]))
 
         # do test
-        epoch_test_reward_diff, epoch_test_v_max_vio = test_vvc(test_env, agent, test_replay, scale_reward)
+        epoch_test_reward_diff, epoch_test_v_max_vio = test_vvc(test_env, agent, test_replay, scale_reward, config, epoch)
         # append test results
         test_reward_diff = test_reward_diff + epoch_test_reward_diff
         test_average_reward_diff.append(np.average(epoch_test_reward_diff))
@@ -187,6 +230,7 @@ def online_vvc(config, offline_rec):
                 'average_reward_diff (r - rbaseline)': np.array(test_average_reward_diff),
                 'max voltage violation': np.array(test_v_max_vio),
                 'average max voltage violation': np.array(test_average_max_vio)}
+    writer.close()
     return online_res, test_res
 
 
@@ -237,3 +281,8 @@ def test_vvc_verbose(online_res):
     print(test_vvc_res)
 
     return test_vvc_res
+
+def deleteAllTensorboardFiles():
+    files = glob.glob('log/*')
+    for f in files:
+        shutil.rmtree(f)

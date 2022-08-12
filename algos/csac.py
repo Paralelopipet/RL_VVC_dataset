@@ -1,8 +1,10 @@
+from distutils.command.config import config
 from statistics import mean
 import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 
 
 from typing import Tuple
@@ -58,7 +60,14 @@ class Agent:
         self.optimizer_Qc2 = torch.optim.Adam(self.Qc2.parameters(), lr=self.lr)
         self.optimizer_Vc = torch.optim.Adam(self.Vc.parameters(), lr=self.lr)
 
-        self.lagrange_multiplier = config['algo']['lagrange_multiplier']
+
+        self.lagrange_multiplier = torch.tensor(config['algo']['lagrange_multiplier'], requires_grad=True)#
+        self.lagrange_optimiser = torch.optim.Adam([self.lagrange_multiplier], lr=config['algo']['step_lagrange'])
+        self.step_policy = config['algo']['step_policy']
+        #self.step_lagrange = config['algo']['step_lagrange']
+
+        self.writer = SummaryWriter("log/online"+config['algo']['algo'])
+        self.writer_counter = 0
 
     def update(self, replay):
         t = replay.sample(self.batch_size)
@@ -66,8 +75,10 @@ class Agent:
         # sample action
         action_sample, action_sample_prob = self.sample_action_with_prob(t.state)
         action_sample_onehot = int2D_to_grouponehot(indices=action_sample, depths=self.dims_action)
-
+        
+        Vcp = self.Vc_tar(t.next_state).detach()
         Vp = self.V_tar(t.next_state).detach()
+
         log_action_sample_prob = torch.zeros_like(Vp)
         for ii in range(self.num_device):
             log_action_sample_prob += torch.log(action_sample_prob[:, ii:ii+1] + 1e-10)
@@ -76,7 +87,7 @@ class Agent:
         with torch.no_grad():
             action_onehot = int2D_to_grouponehot(indices=t.action.long(), depths=self.dims_action)
             Q_target = t.reward_loss - self.lagrange_multiplier * t.reward_constraint + self.discount*(~t.done)*Vp
-            Qc_target = t.reward_constraint + self.discount*(~t.done)*Vp
+            Qc_target = t.reward_constraint + self.discount*(~t.done)*Vcp
             V_target = torch.min(self.Q1(t.state, action_sample_onehot),
                                       self.Q2(t.state, action_sample_onehot)) - \
                        self.alpha * log_action_sample_prob
@@ -90,12 +101,12 @@ class Agent:
         loss_Q2 = torch.mean((self.Q2(t.state, action_onehot) - Q_target) ** 2)
         loss_Qc2 = torch.mean((self.Qc2(t.state, action_onehot) - Qc_target) ** 2)
         loss_V = torch.mean((self.V(t.state) - V_target) ** 2)
-        loss_Vc = torch.mean((self.Vc(t.state) - V_target) ** 2)
+        loss_Vc = torch.mean((self.Vc(t.state) - Vc_target) ** 2)
         with torch.no_grad():
             V = self.V(t.state)
             Q = self.Q1(t.state, action_sample_onehot)
         objective_actor = torch.mean(log_action_sample_prob * (Q - V - self.alpha * log_action_sample_prob.detach()))
-        loss_actor = -objective_actor
+        loss_actor = - self.step_policy * objective_actor
 
         self.optimizer_actor.zero_grad()
         loss_actor.backward()
@@ -132,9 +143,21 @@ class Agent:
             for p, p_tar in zip(self.Vc.parameters(), self.Vc_tar.parameters()):
                 p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
 
-        # update lagrange multiplier
-        self.lagrange_multiplier = self.lagrange_multiplier + torch.mean((self.Vc(t.state) - V_target) ** 2)
+        # number of expected volatage violations
+        VcExp = 0
+        # update lagrange multiplier   
+        self.lagrange_optimiser.zero_grad()
+        #lambda loss calc
+        lambda_loss = torch.mean(self.Vc(t.state) - VcExp)
+        self.log_lam = torch.nn.functional.softplus(self.lagrange_multiplier)
+        lambda_loss =  self.log_lam*lambda_loss.detach()
+        lambda_loss = lambda_loss.sum(dim=-1)
+        lambda_loss.backward()
+        self.lagrange_optimiser.step()
         
+        #add to tensorboard
+        self.writer.add_scalar('lagrange multiplier', self.lagrange_multiplier, self.writer_counter)    
+        self.writer_counter = self.writer_counter + 1     
 
     def sample_action_with_prob(self, state: torch.Tensor):
         prob_all = self.actor(state)
@@ -311,7 +334,6 @@ class VConstraintNet(nn.Module):
         self.output = nn.Linear(n_neurons[-2], n_neurons[-1]).double()
         torch.nn.init.xavier_uniform_(self.output.weight)
         torch.nn.init.zeros_(self.output.bias)
-
     def forward(self, state: torch.Tensor):
         x = state
         for i in range(self.n_layers):
