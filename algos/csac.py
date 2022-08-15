@@ -4,8 +4,7 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 import numpy as np
-from torch.utils.tensorboard import SummaryWriter
-
+from algos.writer import writeAgent
 
 from typing import Tuple
 from .algo_utils import int2D_to_grouponehot
@@ -64,9 +63,8 @@ class Agent:
         self.lagrange_multiplier = torch.tensor(config['algo']['lagrange_multiplier'], requires_grad=True)#
         self.lagrange_optimiser = torch.optim.Adam([self.lagrange_multiplier], lr=config['algo']['step_lagrange'])
         self.step_policy = config['algo']['step_policy']
-        #self.step_lagrange = config['algo']['step_lagrange']
+        self.algo = config['algo']['algo']
 
-        self.writer = SummaryWriter("log/online"+config['algo']['algo'])
         self.writer_counter = 0
 
     def update(self, replay):
@@ -156,7 +154,7 @@ class Agent:
         self.lagrange_optimiser.step()
         
         #add to tensorboard
-        self.writer.add_scalar('lagrange multiplier', self.lagrange_multiplier, self.writer_counter)    
+        writeAgent(self.lagrange_multiplier, self.writer_counter, self.algo)    
         self.writer_counter = self.writer_counter + 1     
 
     def sample_action_with_prob(self, state: torch.Tensor):
