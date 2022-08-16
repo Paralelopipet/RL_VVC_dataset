@@ -143,7 +143,7 @@ def test_vvc(env, agent, replay, scale_reward, config, epoch):
             if (config['algo']['algo'] == 'csac'):
                 writer.add_scalar('reward loss diff' ,np.mean(reward_loss_diff[-tensor_running:]), epoch*env.len_online+iter)
                 writer.add_scalar('reward constraint diff' , np.mean(reward_constraint_diff[-tensor_running:]), epoch*env.len_online+iter)
-            writer.add_scalar('reward' , np.mean(reward_diff[-tensor_running:]), epoch*env.len_online+iter)
+            writer.add_scalar('reward diff' , np.mean(reward_diff[-tensor_running:]), epoch*env.len_online+iter)
             writer.add_scalar('v max violation' , np.mean(v_max_vio[-tensor_running:]), epoch*env.len_online+iter)
 
     return reward_diff, v_max_vio

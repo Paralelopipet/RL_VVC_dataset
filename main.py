@@ -5,7 +5,7 @@ from vvc import offline_vvc, online_vvc, test_vvc_verbose, deleteAllTensorboardF
 from plot import plot_res1, plot_res2
 from datetime import datetime
 
-envs = ['13']
+envs = ['123']
 # envs = ['13']
 # algos = ['dqn', 'sac']
 algos = ['sac', 'csac']
@@ -15,7 +15,7 @@ seeds = [0]
 # save timestamp
 timestamp = True
 # time stamp
-now = ''
+now = '' 
 if timestamp:
     now = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
 else:
@@ -29,7 +29,7 @@ for env in envs:
             "state_option": 2,
             "reward_option": 1,
             "offline_split": 0.1,  # initial values
-            "online_split": 0.1,
+            "online_split": 0.8,
             "test_split": 0.1,
             "replay_size": 3000,
             "test_result": 10,
@@ -47,7 +47,7 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 5,
+                "online_training_steps": 10,
             }
         elif algo == 'csac':
             config['algo'] = {
@@ -60,7 +60,7 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 5,
+                "online_training_steps": 10,
                 "lagrange_multiplier": 1.0,
                 "step_policy": 1,
                 "step_lagrange": 1.0
