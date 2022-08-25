@@ -113,12 +113,12 @@ for env in envs:
                 res['test_' + k].append(v)
             # test_vvc_verbose results
 
-            # if seed == 0:
-            #     test_vvc_res = test_vvc_verbose(online_res)
-            #     # since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
-            #     plot_res2(test_vvc_res=test_vvc_res,
-            #               env=env,
-            #               algos=algos)
+            if seed == 0:
+                test_vvc_res = test_vvc_verbose(online_res)
+                #since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
+                plot_res2(test_vvc_res=test_vvc_res,
+                          env=env,
+                          algos=algos)
 
         
         with open('./res/data/{}_{}{}.pkl'.format(config['env'],

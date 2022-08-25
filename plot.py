@@ -64,9 +64,9 @@ def plot_res1(envs, algos, metric, smoothing, ylabel, xlabel, time_stamp):
 
         if ax == 0:
             axes[ax, 0].set_ylabel(ylabel)
-            axes[ax, 0].set_xlabel(xlabel)
+            #axes[ax, 0].set_xlabel(xlabel)
             axes[ax, 1].set_ylabel(ylabel)
-            axes[ax, 1].set_xlabel(xlabel)
+            #axes[ax, 1].set_xlabel(xlabel)
         if ax == 1:
             axes[ax, 0].set_ylabel(ylabel)
             axes[ax, 0].set_xlabel(xlabel)
@@ -84,6 +84,7 @@ def plot_res1(envs, algos, metric, smoothing, ylabel, xlabel, time_stamp):
 def plot_res2(test_vvc_res, env, algos):
     metric = ['tap position oltc', 'status capacitors', 'voltage', 'load feeder']
     fig, axes = plt.subplots(nrows=len(metric), ncols=1, figsize=(4. * len(metric), 4. * len(metric)))
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
     if env == '13':
         #print("13")
@@ -101,9 +102,9 @@ def plot_res2(test_vvc_res, env, algos):
 
         activePowerFeeder = test_vvc_res['active power feeder']
         reactivePowerFeeder = test_vvc_res['reactive power feeder']
-        ind = np.arange(test_vvc_res['len_step'])
-        axes[3].bar(x=ind, height=activePowerFeeder, width=0.9, align='center', label='active power load')
-        axes[3].bar(x=ind, height=reactivePowerFeeder, width=0.9, align='center', label='reactive power load')
+        x = np.arange(test_vvc_res['len_step'])
+        axes[3].bar(x, height=activePowerFeeder, width=0.9, align='center', label='active power load')
+        axes[3].bar(x, height=reactivePowerFeeder, width=0.9, align='center', label='reactive power load')
 
         axes[0].legend()
         axes[1].legend()
@@ -122,6 +123,38 @@ def plot_res2(test_vvc_res, env, algos):
         axes[3].grid(True, axis='x', alpha=0.5)
 
         axes[0].title.set_text('{} test bus'.format(env))
+
+        # Make data for 3D plot
+        X = np.arange(1, 16, 1)
+        Y = np.arange(0, test_vvc_res['len_step'], 1)
+        X, Y = np.meshgrid(X, Y)
+        Z = test_vvc_res['voltage all buses']
+
+        ax.view_init(10, 45)
+
+        ax.set_xlabel('Bus')
+        ax.set_ylabel('Time (half-hour)')
+        ax.set_zlabel('Voltage (p.u.)')
+
+        # Get rid of colored axes planes
+        # First remove fill
+        ax.xaxis.pane.fill = False
+        ax.yaxis.pane.fill = False
+        ax.zaxis.pane.fill = False
+
+        # Now set color to white (or whatever is "invisible")
+        ax.xaxis.pane.set_edgecolor('w')
+        ax.yaxis.pane.set_edgecolor('w')
+        ax.zaxis.pane.set_edgecolor('w')
+
+        ax.xaxis._axinfo["grid"].update({"linewidth": 0.1, "color": "gray"})
+        ax.yaxis._axinfo["grid"].update({"linewidth": 0.1, "color": "gray"})
+        ax.zaxis._axinfo["grid"].update({"linewidth": 0.1, "color": "gray"})
+
+        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap='viridis', linewidth=0, antialiased=False)
+
+        # Add a color bar which maps values to colors.
+        fig.colorbar(surf, shrink=0.5, aspect=5)
 
     if env == '123':
         #print("123")
@@ -139,9 +172,9 @@ def plot_res2(test_vvc_res, env, algos):
 
         activePowerFeeder = test_vvc_res['active power feeder']
         reactivePowerFeeder = test_vvc_res['reactive power feeder']
-        ind = np.arange(test_vvc_res['len_step'])
-        axes[3].bar(x=ind, height=activePowerFeeder, width=0.9, align='center', label='active power load')
-        axes[3].bar(x=ind, height=reactivePowerFeeder, width=0.9, align='center', label='reactive power load')
+        x = np.arange(test_vvc_res['len_step'])
+        axes[3].bar(x, height=activePowerFeeder, width=0.9, align='center', label='active power load')
+        axes[3].bar(x, height=reactivePowerFeeder, width=0.9, align='center', label='reactive power load')
 
         axes[0].legend()
         axes[1].legend()
@@ -160,6 +193,38 @@ def plot_res2(test_vvc_res, env, algos):
         axes[3].grid(True, axis='x', alpha=0.5)
 
         axes[0].title.set_text('{} test bus'.format(env))
+
+        # Make data for 3D plot
+        X = np.arange(1, 86, 1)
+        Y = np.arange(0, test_vvc_res['len_step'], 1)
+        X, Y = np.meshgrid(X, Y)
+        Z = test_vvc_res['voltage all buses']
+
+        ax.view_init(10, 45)
+
+        ax.set_xlabel('Bus')
+        ax.set_ylabel('Time (half-hour)')
+        ax.set_zlabel('Voltage (p.u.)')
+
+        # Get rid of colored axes planes
+        # First remove fill
+        ax.xaxis.pane.fill = False
+        ax.yaxis.pane.fill = False
+        ax.zaxis.pane.fill = False
+
+        # Now set color to white (or whatever is "invisible")
+        ax.xaxis.pane.set_edgecolor('w')
+        ax.yaxis.pane.set_edgecolor('w')
+        ax.zaxis.pane.set_edgecolor('w')
+
+        ax.xaxis._axinfo["grid"].update({"linewidth": 0.1, "color": "gray"})
+        ax.yaxis._axinfo["grid"].update({"linewidth": 0.1, "color": "gray"})
+        ax.zaxis._axinfo["grid"].update({"linewidth": 0.1, "color": "gray"})
+
+        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap='viridis', linewidth=0, antialiased=False)
+
+        # Add a color bar which maps values to colors.
+        fig.colorbar(surf, shrink=0.5, aspect=5)
 
     plt.legend()
     plt.savefig('./res/figs/bus{}_VVC_Result.pdf'.format(env), bbox_inches='tight')
