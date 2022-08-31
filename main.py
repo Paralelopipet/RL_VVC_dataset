@@ -4,8 +4,9 @@ from sklearn import metrics
 from vvc import offline_vvc, online_vvc, test_vvc_verbose, deleteAllTensorboardFiles
 from plot import plot_res1, plot_res2
 from datetime import datetime
+from enum import Enum
 
-envs = ['123']
+envs = ['13']
 # envs = ['13']
 # algos = ['dqn', 'sac']
 algos = ['sac', 'csac']
@@ -21,15 +22,24 @@ if timestamp:
 else:
     now = ""
 
+
+class RewardOption(Enum):
+    SWITCHINGLINEARVOLTCIRCUIT = 1
+    SWITCHINGLINEARVOLT = 2
+    SWITCHINGDISCRETEVOLTCIRCUIT = 3
+    SWITCHINGDISCRETEVOLT = 4
+    CONSTRAINTNOSWITCHING = 5
+    DISCRETEVOLTCIRCUIT = 6
+
 deleteAllTensorboardFiles()
 for env in envs:
     for algo in algos:
         config = {
             "env": env,
             "state_option": 2,
-            "reward_option": 1,
+            "reward_option": RewardOption.DISCRETEVOLTCIRCUIT.value,
             "offline_split": 0.1,  # initial values
-            "online_split": 0.8,
+            "online_split": 0.1,
             "test_split": 0.1,
             "replay_size": 3000,
             "test_result": 10,
@@ -47,7 +57,7 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 10,
+                "online_training_steps": 2,
             }
         elif algo == 'csac':
             config['algo'] = {
@@ -60,12 +70,12 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 10,
+                "online_training_steps": 2,
                 "lagrange_multiplier": 1.0,
                 "step_policy": 1,
                 "step_lagrange": 1.0
             }
-            config['reward_option'] = 5
+            config['reward_option'] = RewardOption.CONSTRAINTNOSWITCHING.value
         elif algo == 'dqn':
             config['algo'] = {
                 "algo": "dqn",
@@ -103,12 +113,12 @@ for env in envs:
                 res['test_' + k].append(v)
             # test_vvc_verbose results
 
-            # if seed == 0:
-            #     test_vvc_res = test_vvc_verbose(online_res)
-            #     # since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
-            #     plot_res2(test_vvc_res=test_vvc_res,
-            #               env=env,
-            #               algos=algos)
+            if seed == 0:
+                test_vvc_res = test_vvc_verbose(online_res)
+                #since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
+                plot_res2(test_vvc_res=test_vvc_res,
+                          env=env,
+                          algos=algos)
 
         
         with open('./res/data/{}_{}{}.pkl'.format(config['env'],
