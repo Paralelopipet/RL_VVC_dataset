@@ -27,6 +27,7 @@ class Agent:
         self.dim_state = env.dim_state
         self.dims_action = env.dims_action
         self.num_device = len(self.dims_action)
+        self.online_training_steps = config['algo']['online_training_steps']
 
         self.actor = ActorNet(dim_state=self.dim_state,
                               dims_action=self.dims_action,
@@ -37,17 +38,18 @@ class Agent:
         self.Q2 = QCriticNet(dim_state=self.dim_state,
                              dims_action=self.dims_action,
                              dims_hidden_neurons=self.dims_hidden_neurons)
-        self.V = VCriticNet(dim_state=self.dim_state,
-                            dims_hidden_neurons=self.dims_hidden_neurons)
-        self.V_tar = VCriticNet(dim_state=self.dim_state,
-                                dims_hidden_neurons=self.dims_hidden_neurons)
-
-        self.Qc1 = QConstraintNet(dim_state=self.dim_state,
+        self.Q1_tar = QCriticNet(dim_state=self.dim_state,
                              dims_action=self.dims_action,
                              dims_hidden_neurons=self.dims_hidden_neurons)
-        self.Qc2 = QConstraintNet(dim_state=self.dim_state,
+        self.Q2_tar = QCriticNet(dim_state=self.dim_state,
                              dims_action=self.dims_action,
                              dims_hidden_neurons=self.dims_hidden_neurons)
+        self.Qc = QConstraintNet(dim_state=self.dim_state,
+                             dims_action=self.dims_action,
+                             dims_hidden_neurons=self.dims_hidden_neurons)
+        self.Qc_tar = QConstraintNet(dim_state=self.dim_state,
+                             dims_action=self.dims_action,
+                             dims_hidden_neurons=self.dims_hidden_neurons)                   
         self.Vc = VConstraintNet(dim_state=self.dim_state,
                             dims_hidden_neurons=self.dims_hidden_neurons)
         self.Vc_tar = VConstraintNet(dim_state=self.dim_state,
@@ -56,9 +58,7 @@ class Agent:
         self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
         self.optimizer_Q1 = torch.optim.Adam(self.Q1.parameters(), lr=self.lr)
         self.optimizer_Q2 = torch.optim.Adam(self.Q2.parameters(), lr=self.lr)
-        self.optimizer_V = torch.optim.Adam(self.V.parameters(), lr=self.lr)
-        self.optimizer_Qc1 = torch.optim.Adam(self.Qc1.parameters(), lr=self.lr)
-        self.optimizer_Qc2 = torch.optim.Adam(self.Qc2.parameters(), lr=self.lr)
+        self.optimizer_Qc = torch.optim.Adam(self.Qc.parameters(), lr=self.lr)
         self.optimizer_Vc = torch.optim.Adam(self.Vc.parameters(), lr=self.lr)
 
 
@@ -66,8 +66,30 @@ class Agent:
         self.lagrange_optimiser = torch.optim.Adam([self.lagrange_multiplier], lr=config['algo']['step_lagrange'])
         self.step_policy = config['algo']['step_policy']
         self.algo = config['algo']['algo']
-
         self.writer_counter = 0
+
+        # wcsac specific parameters
+        self.damp_scale = 1 # 0 for not in use, 10 in original algorithm
+        self.cost_limit = 15 # 15 in original algo, eq 10, parameter d
+        self.init_temperature = 0.692
+        #beta in paper
+        self.log_beta = torch.tensor(np.log(self.init_temperature)) 
+        self.log_beta.requires_grad = True
+        #kappa in paper
+        self.log_kappa = torch.tensor(np.log(self.init_temperature)) 
+        self.log_kappa.requires_grad = True
+
+        # beta and kappa optimizers
+        self.beta_optimizer = torch.optim.Adam([self.log_beta], lr=self.lr)
+        self.kappa_optimizer = torch.optim.Adam([self.log_kappa], lr=self.lr)
+
+        # Set target entropy to -|A|
+        self.target_entropy = self.num_device
+
+        # Set target cost
+        self.target_cost = (
+            self.cost_limit * (1 - self.discount**self.online_training_steps) / (1 - self.discount) / self.online_training_steps
+        )
 
     def update(self, replay):
         t = replay.sample(self.batch_size)
@@ -75,57 +97,95 @@ class Agent:
         # sample action
         action_sample, action_sample_prob = self.sample_action_with_prob(t.state)
         action_sample_onehot = int2D_to_grouponehot(indices=action_sample, depths=self.dims_action)
+
+        # sample next action
+        next_action_sample, next_action_sample_prob = self.sample_action_with_prob(t.next_state)
+        next_action_sample_onehot = int2D_to_grouponehot(indices=next_action_sample, depths=self.dims_action)
         
         Vcp = self.Vc_tar(t.next_state).detach()
         Vp = self.V_tar(t.next_state).detach()
+        
 
         log_action_sample_prob = torch.zeros_like(Vp)
         for ii in range(self.num_device):
-            log_action_sample_prob += torch.log(action_sample_prob[:, ii:ii+1] + 1e-10)
+            log_action_sample_prob += torch.log(next_action_sample_prob[:, ii:ii+1] + 1e-10)
 
         # compute Q target and V target
         with torch.no_grad():
             action_onehot = int2D_to_grouponehot(indices=t.action.long(), depths=self.dims_action)
-            Q_target = t.reward_loss - self.lagrange_multiplier * t.reward_constraint + self.discount*(~t.done)*Vp
-            Qc_target = t.reward_constraint + self.discount*(~t.done)*Vcp
-            V_target = torch.min(self.Q1(t.state, action_sample_onehot),
-                                      self.Q2(t.state, action_sample_onehot)) - \
-                       self.alpha * log_action_sample_prob
-            Vc_target = torch.max(self.Q1(t.state, action_sample_onehot),
-                                      self.Q2(t.state, action_sample_onehot)) - \
-                       self.alpha * log_action_sample_prob
+            # previos code
+            # Q_target = t.reward_loss - self.lagrange_multiplier * t.reward_constraint + self.discount*(~t.done)*Vp
+            # Qc_target = t.reward_constraint + self.discount*(~t.done)*Vcp
+            # V_target = torch.min(self.Q1(t.state, action_sample_onehot),
+            #                           self.Q2(t.state, action_sample_onehot)) - \
+            #            self.alpha * log_action_sample_prob
+            # Vc_target = torch.max(self.Q1(t.state, action_sample_onehot),
+            #                           self.Q2(t.state, action_sample_onehot)) - \
+            #            self.alpha * log_action_sample_prob
 
-       
+            # new code
+            Q1_target = self.Q1_tar(t.next_state, next_action_sample_onehot)
+            Q2_target = self.Q2_tar(t.next_state, next_action_sample_onehot)
+            V_target = torch.min(Q1_target,Q2_target) - \
+                       self.log_beta.exp().detach() * log_action_sample_prob
+            Q_target = t.reward_loss + self.discount*(~t.done)*V_target
 
+            # get current and next Qc values
+            Qc_current = self.Qc(t.state, action_onehot)
+            Qc_next = self.Qc_tar(t.next_state, next_action_sample_onehot)
+
+            #calculate constraint rewards
+            Vc_target = t.reward_constraint**2 \
+                        - Qc_current**2 \
+                        + 2 * self.discount * t.reward_constraint * Qc_next \
+                        + self.discount**2 * Vcp \
+                        + self.discount**2 * Qc_next**2
+            Qc_target = t.reward_constraint + self.discount*(~t.done)*Qc_next
+            Qc_target = Qc_target.detach()
+            Vc_target = Vc_target.detach()
+
+            ############### update actor and alpha beta ###############
+
+            # Reward Critic
+            Q1_actor = self.Q1(t.state, action_sample_onehot)
+            Q2_actor = self.Q2(t.state, action_sample_onehot)
+            Q_actor = torch.min(Q1_actor, Q2_actor)
+
+            # Safety Critic with actor actions
+            Qc_actor = self.Qc(t.state, action_sample_onehot)
+            Vc_actor = self.Vc(t.state, action_sample_onehot)
+
+            # Safety Critic with actual actions
+            #Qc_current
+            Vc_current = self.Vc(t.state).detach()
+
+        pdf_cdf = self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) # maybe try logpdf
+        cvar = Qc_current + pdf_cdf * torch.sqrt(Vc_current)
+        damp = self.damp_scale * torch.mean(self.target_cost - cvar)
+
+        # calculate log probability of sample action
+        log_action_prob = torch.zeros_like(Vp)
+        for ii in range(self.num_device):
+            log_action_prob += torch.log(action_sample_prob[:, ii:ii+1] + 1e-10)
+        # Actor Loss
+        loss_actor = torch.mean(
+            self.log_beta.exp().detach() * log_action_prob
+            - Q_actor
+            + (self.log_kappa.exp().detach() - damp) * (Qc_actor + pdf_cdf * torch.sqrt(Vc_actor))
+        )
+        
         # construct loss functions
         loss_Q1 = torch.mean((self.Q1(t.state, action_onehot) - Q_target) ** 2)
-        loss_Qc1 = torch.mean((self.Qc1(t.state, action_onehot) - Qc_target) ** 2)
         loss_Q2 = torch.mean((self.Q2(t.state, action_onehot) - Q_target) ** 2)
-        loss_Qc2 = torch.mean((self.Qc2(t.state, action_onehot) - Qc_target) ** 2)
-        loss_V = torch.mean((self.V(t.state) - V_target) ** 2)
-        loss_Vc = torch.mean((self.Vc(t.state) - Vc_target) ** 2)
-        with torch.no_grad():
-            V = self.V(t.state)
-            Q = self.Q1(t.state, action_sample_onehot)
+        loss_Qc = torch.mean((self.Qc(t.state, action_onehot) - Qc_target) ** 2)
+        loss_Vc = torch.mean(Vc_current + Vc_target - 2*torch.sqrt(Vc_target * Vc_current))
 
-        ########### WCSAC CHANGES ##############
-        # Gamma function
-        self.gamma = Q + self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) * np.sqrt(V)
-
-        Q_probabilities = 0
-        for 
-        with torch.no_grad():
-            Q_target = t.reward_constraint + self.discount* + self.lagrange_multiplier *  + self.discount*(~t.done)*Vp
-            
-
-
-
-
-
-        #########################################
+        # with torch.no_grad():
+        #     V = self.V(t.state)
+        #     Q = self.Q1(t.state, action_sample_onehot)
         
-        objective_actor = torch.mean(log_action_sample_prob * (Q - V - self.alpha * log_action_sample_prob.detach()))
-        loss_actor = - self.step_policy * objective_actor
+        #objective_actor = torch.mean(log_action_sample_prob * (Q - V - self.alpha * log_action_sample_prob.detach()))
+        #loss_actor = - self.step_policy * objective_actor
 
         self.optimizer_actor.zero_grad()
         loss_actor.backward()
@@ -135,50 +195,56 @@ class Agent:
         loss_Q1.backward()
         self.optimizer_Q1.step()
 
-        self.optimizer_Qc1.zero_grad()
-        loss_Qc1.backward()
-        self.optimizer_Qc1.step()
+        self.optimizer_Qc.zero_grad()
+        loss_Qc.backward()
+        self.optimizer_Qc.step()
 
         self.optimizer_Q2.zero_grad()
         loss_Q2.backward()
         self.optimizer_Q2.step()
 
-        self.optimizer_Qc2.zero_grad()
-        loss_Qc2.backward()
-        self.optimizer_Qc2.step()
-
-        self.optimizer_V.zero_grad()
-        loss_V.backward()
-        self.optimizer_V.step()
-
         self.optimizer_Vc.zero_grad()
         loss_Vc.backward()
         self.optimizer_Vc.step()
 
+        # train beta and kappa
+        self.beta_optimizer.zero_grad()
+        beta_loss = torch.mean(self.log_beta.exp() * (-log_action_prob - self.target_entropy).detach())
+        beta_loss.backward()
+        self.beta_optimizer.step()
+
+        self.kappa_optimizer.zero_grad()
+        kappa_loss = torch.mean(self.log_kappa.exp() * (self.target_cost - cvar).detach())
+        kappa_loss.backward()
+        self.kappa_optimizer.step()
+
+
         # update V target and Vc target parameters
         with torch.no_grad():
-            for p, p_tar in zip(self.V.parameters(), self.V_tar.parameters()):
+            for p, p_tar in zip(self.Q1.parameters(), self.Q1_tar.parameters()):
+                p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+            for p, p_tar in zip(self.Q2.parameters(), self.Q2_tar.parameters()):
                 p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
             for p, p_tar in zip(self.Vc.parameters(), self.Vc_tar.parameters()):
                 p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+            for p, p_tar in zip(self.Qc.parameters(), self.Qc_tar.parameters()):
+                p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
 
-        # number of expected volatage violations
-        VcExp = 0
-        # update lagrange multiplier   
-        self.lagrange_optimiser.zero_grad()
-        #lambda loss calc
-        lambda_loss = torch.mean(self.Vc(t.state) - VcExp)
-        self.log_lam = torch.nn.functional.softplus(self.lagrange_multiplier)
-        lambda_loss =  self.log_lam*lambda_loss.detach()
-        lambda_loss = lambda_loss.sum(dim=-1)
-        lambda_loss.backward()
-        self.lagrange_optimiser.step()
+        # # number of expected volatage violations
+        # VcExp = 0
+        # # update lagrange multiplier   
+        # self.lagrange_optimiser.zero_grad()
+        # #lambda loss calc
+        # lambda_loss = torch.mean(self.Vc(t.state) - VcExp)
+        # self.log_lam = torch.nn.functional.softplus(self.lagrange_multiplier)
+        # lambda_loss =  self.log_lam*lambda_loss.detach()
+        # lambda_loss = lambda_loss.sum(dim=-1)
+        # lambda_loss.backward()
+        # self.lagrange_optimiser.step()
 
-        # Safety measure - Gamma - Γ_policy
-        self.gamma = 0
         
         #add to tensorboard
-        writeAgent(self.lagrange_multiplier, self.writer_counter, self.algo)    
+        # writeAgent(self.log_beta, self.writer_counter, self.algo, 'lagrange multiplier')    
         self.writer_counter = self.writer_counter + 1     
 
     def sample_action_with_prob(self, state: torch.Tensor):
