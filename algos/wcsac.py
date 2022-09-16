@@ -1,4 +1,5 @@
 from cmath import phase
+import copy
 from distutils.command.config import config
 from statistics import mean
 import torch
@@ -52,8 +53,7 @@ class Agent:
                              dims_hidden_neurons=self.dims_hidden_neurons)                   
         self.Vc = VConstraintNet(dim_state=self.dim_state,
                             dims_hidden_neurons=self.dims_hidden_neurons)
-        self.Vc_tar = VConstraintNet(dim_state=self.dim_state,
-                                dims_hidden_neurons=self.dims_hidden_neurons)
+        self.Vc_tar = copy.deepcopy(self.Vc)
 
         self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
         self.optimizer_Q1 = torch.optim.Adam(self.Q1.parameters(), lr=self.lr)
@@ -103,10 +103,9 @@ class Agent:
         next_action_sample_onehot = int2D_to_grouponehot(indices=next_action_sample, depths=self.dims_action)
         
         Vcp = self.Vc_tar(t.next_state).detach()
-        Vp = self.V_tar(t.next_state).detach()
         
 
-        log_action_sample_prob = torch.zeros_like(Vp)
+        log_action_sample_prob = torch.zeros_like(Vcp)
         for ii in range(self.num_device):
             log_action_sample_prob += torch.log(next_action_sample_prob[:, ii:ii+1] + 1e-10)
 
@@ -153,18 +152,19 @@ class Agent:
 
             # Safety Critic with actor actions
             Qc_actor = self.Qc(t.state, action_sample_onehot)
-            Vc_actor = self.Vc(t.state, action_sample_onehot)
+            Vc_actor = self.Vc(t.state)
 
             # Safety Critic with actual actions
             #Qc_current
-            Vc_current = self.Vc(t.state).detach()
+        Vc_current = self.Vc(t.state)
+        Vc_current
 
         pdf_cdf = self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) # maybe try logpdf
         cvar = Qc_current + pdf_cdf * torch.sqrt(Vc_current)
         damp = self.damp_scale * torch.mean(self.target_cost - cvar)
 
         # calculate log probability of sample action
-        log_action_prob = torch.zeros_like(Vp)
+        log_action_prob = torch.zeros_like(Vcp)
         for ii in range(self.num_device):
             log_action_prob += torch.log(action_sample_prob[:, ii:ii+1] + 1e-10)
         # Actor Loss
@@ -178,7 +178,7 @@ class Agent:
         loss_Q1 = torch.mean((self.Q1(t.state, action_onehot) - Q_target) ** 2)
         loss_Q2 = torch.mean((self.Q2(t.state, action_onehot) - Q_target) ** 2)
         loss_Qc = torch.mean((self.Qc(t.state, action_onehot) - Qc_target) ** 2)
-        loss_Vc = torch.mean(Vc_current + Vc_target - 2*torch.sqrt(Vc_target * Vc_current))
+        loss_Vc = torch.mean(Vc_current + Vc_target - torch.sign(Vc_target * Vc_current) * 2*torch.sqrt(abs(Vc_target * Vc_current)))
 
         # with torch.no_grad():
         #     V = self.V(t.state)
@@ -188,7 +188,7 @@ class Agent:
         #loss_actor = - self.step_policy * objective_actor
 
         self.optimizer_actor.zero_grad()
-        loss_actor.backward()
+        loss_actor.backward(retain_graph=True)
         self.optimizer_actor.step()
 
         self.optimizer_Q1.zero_grad()

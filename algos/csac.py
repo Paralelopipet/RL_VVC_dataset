@@ -154,7 +154,9 @@ class Agent:
         self.lagrange_optimiser.step()
         
         #add to tensorboard
-        writeAgent(self.lagrange_multiplier, self.writer_counter, self.algo)    
+        writeAgent(self.lagrange_multiplier, self.writer_counter, self.algo, 'lagrange multiplier')    
+        writeAgent(torch.min(self.Vc(t.state).detach()), self.writer_counter, self.algo, 'V constraint min')    
+        writeAgent(torch.mean(self.Vc(t.state).detach()), self.writer_counter, self.algo, 'V constraint mean')    
         self.writer_counter = self.writer_counter + 1     
 
     def sample_action_with_prob(self, state: torch.Tensor):

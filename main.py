@@ -9,7 +9,7 @@ from enum import Enum
 envs = ['13']
 # envs = ['13']
 # algos = ['dqn', 'sac']
-algos = ['sac', 'csac']
+algos = ['sac', 'wcsac']
 # seeds = [0, 1, 2]
 seeds = [0]
 
@@ -57,7 +57,7 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 2,
+                "online_training_steps": 10,
             }
         elif algo == 'csac':
             config['algo'] = {
@@ -70,7 +70,24 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 2,
+                "online_training_steps": 10,
+                "lagrange_multiplier": 1.0,
+                "step_policy": 1,
+                "step_lagrange": 1.0
+            }
+            config['reward_option'] = RewardOption.CONSTRAINTNOSWITCHING.value
+        elif algo == 'wcsac':
+            config['algo'] = {
+                "algo": "wcsac",
+                "dims_hidden_neurons": (120, 120),
+                "scale_reward": 5.0,
+                "discount": 0.95,
+                "alpha": .2,
+                "batch_size": 64,
+                "lr": 0.0005,
+                "smooth": 0.99,
+                "offline_training_steps": 100,
+                "online_training_steps": 10,
                 "lagrange_multiplier": 1.0,
                 "step_policy": 1,
                 "step_lagrange": 1.0
@@ -113,12 +130,12 @@ for env in envs:
                 res['test_' + k].append(v)
             # test_vvc_verbose results
 
-            if seed == 0:
-                test_vvc_res = test_vvc_verbose(online_res)
-                #since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
-                plot_res2(test_vvc_res=test_vvc_res,
-                          env=env,
-                          algos=algos)
+            # if seed == 0:
+            #     test_vvc_res = test_vvc_verbose(online_res)
+            #     #since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
+            #     plot_res2(test_vvc_res=test_vvc_res,
+            #               env=env,
+            #               algos=algos)
 
         
         with open('./res/data/{}_{}{}.pkl'.format(config['env'],
