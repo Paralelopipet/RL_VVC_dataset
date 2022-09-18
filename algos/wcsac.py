@@ -61,9 +61,6 @@ class Agent:
         self.optimizer_Qc = torch.optim.Adam(self.Qc.parameters(), lr=self.lr)
         self.optimizer_Vc = torch.optim.Adam(self.Vc.parameters(), lr=self.lr)
 
-
-        self.lagrange_multiplier = torch.tensor(config['algo']['lagrange_multiplier'], requires_grad=True)#
-        self.lagrange_optimiser = torch.optim.Adam([self.lagrange_multiplier], lr=config['algo']['step_lagrange'])
         self.step_policy = config['algo']['step_policy']
         self.algo = config['algo']['algo']
         self.writer_counter = 0
@@ -72,10 +69,10 @@ class Agent:
         self.damp_scale = 1 # 0 for not in use, 10 in original algorithm
         self.cost_limit = 15 # 15 in original algo, eq 10, parameter d
         self.init_temperature = 0.692
-        #beta in paper
+        #beta in paper - adaptive entropy
         self.log_beta = torch.tensor(np.log(self.init_temperature)) 
         self.log_beta.requires_grad = True
-        #kappa in paper
+        #kappa in paper - safety weights
         self.log_kappa = torch.tensor(np.log(self.init_temperature)) 
         self.log_kappa.requires_grad = True
 
@@ -103,8 +100,8 @@ class Agent:
         next_action_sample_onehot = int2D_to_grouponehot(indices=next_action_sample, depths=self.dims_action)
         
         Vcp = self.Vc_tar(t.next_state).detach()
-        
 
+        #log sample action in next state
         log_action_sample_prob = torch.zeros_like(Vcp)
         for ii in range(self.num_device):
             log_action_sample_prob += torch.log(next_action_sample_prob[:, ii:ii+1] + 1e-10)
@@ -125,6 +122,8 @@ class Agent:
             # new code
             Q1_target = self.Q1_tar(t.next_state, next_action_sample_onehot)
             Q2_target = self.Q2_tar(t.next_state, next_action_sample_onehot)
+            
+            # V target is estimated from min Q_target 
             V_target = torch.min(Q1_target,Q2_target) - \
                        self.log_beta.exp().detach() * log_action_sample_prob
             Q_target = t.reward_loss + self.discount*(~t.done)*V_target
@@ -159,8 +158,13 @@ class Agent:
         Vc_current = self.Vc(t.state)
         Vc_current
 
+        
+        # norm is Normal(mean = 0,sigma = 1), norm.ppf - inverse cdf
         pdf_cdf = self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) # maybe try logpdf
+        # WCSAC paper Equation 9
         cvar = Qc_current + pdf_cdf * torch.sqrt(Vc_current)
+        
+        # damp is introduced in 
         damp = self.damp_scale * torch.mean(self.target_cost - cvar)
 
         # calculate log probability of sample action
