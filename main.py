@@ -5,6 +5,7 @@ from vvc import offline_vvc, online_vvc, test_vvc_verbose, deleteAllTensorboardF
 from plot import plot_res1, plot_res2
 from datetime import datetime
 from enum import Enum
+from notify import NotifySlack
 
 envs = ['13']
 # envs = ['13']
@@ -168,4 +169,8 @@ for metric in metrics1:
               ylabel=ylabel1[metric],
               xlabel='Time (half-hour)',
               time_stamp=now)
+
+#when everything is done notify Slack
+NotifySlack()
+
 

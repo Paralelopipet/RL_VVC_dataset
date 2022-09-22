@@ -100,6 +100,7 @@ class Agent:
         next_action_sample_onehot = int2D_to_grouponehot(indices=next_action_sample, depths=self.dims_action)
         
         Vcp = self.Vc_tar(t.next_state).detach()
+        Vcp = torch.clamp(Vcp, min=1e-8, max=1e8)
 
         #log sample action in next state
         log_action_sample_prob = torch.zeros_like(Vcp)
@@ -140,7 +141,8 @@ class Agent:
                         + self.discount**2 * Qc_next**2
             Qc_target = t.reward_constraint + self.discount*(~t.done)*Qc_next
             Qc_target = Qc_target.detach()
-            Vc_target = Vc_target.detach()
+            
+            Vc_target = torch.clamp(Vc_target, min=1e-8, max=1e8).detach()
 
             ############### update actor and alpha beta ###############
 
@@ -152,12 +154,12 @@ class Agent:
             # Safety Critic with actor actions
             Qc_actor = self.Qc(t.state, action_sample_onehot)
             Vc_actor = self.Vc(t.state)
+            Vc_actor = torch.clamp(Vc_actor, min=1e-8, max=1e8)
 
             # Safety Critic with actual actions
             #Qc_current
         Vc_current = self.Vc(t.state)
-        Vc_current
-
+        Vc_current = torch.clamp(Vc_current, min=1e-8, max=1e8)
         
         # norm is Normal(mean = 0,sigma = 1), norm.ppf - inverse cdf
         pdf_cdf = self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) # maybe try logpdf
@@ -182,7 +184,8 @@ class Agent:
         loss_Q1 = torch.mean((self.Q1(t.state, action_onehot) - Q_target) ** 2)
         loss_Q2 = torch.mean((self.Q2(t.state, action_onehot) - Q_target) ** 2)
         loss_Qc = torch.mean((self.Qc(t.state, action_onehot) - Qc_target) ** 2)
-        loss_Vc = torch.mean(Vc_current + Vc_target - torch.sign(Vc_target * Vc_current) * 2*torch.sqrt(abs(Vc_target * Vc_current)))
+        # loss_Vc = torch.mean(Vc_current + Vc_target - torch.sign(Vc_target * Vc_current) * 2*torch.sqrt(abs(Vc_target * Vc_current)))
+        loss_Vc = torch.mean(Vc_current + Vc_target - 2*torch.sqrt(abs(Vc_target * Vc_current)))
 
         # with torch.no_grad():
         #     V = self.V(t.state)
@@ -248,7 +251,17 @@ class Agent:
 
         
         #add to tensorboard
-        # writeAgent(self.log_beta, self.writer_counter, self.algo, 'lagrange multiplier')    
+        writeAgent(self.log_beta, self.writer_counter, self.algo, 'log beta')    
+        writeAgent(self.log_kappa, self.writer_counter, self.algo, 'log kappa')    
+        writeAgent(torch.mean(Vc_current), self.writer_counter, self.algo, 'Vc_current mean')    
+        writeAgent(torch.min(Vc_current), self.writer_counter, self.algo, 'Vc_current min')    
+        writeAgent(torch.mean(Vc_target), self.writer_counter, self.algo, 'Vc_target mean')    
+        writeAgent(torch.min(Vc_target), self.writer_counter, self.algo, 'Vc_target min')    
+        writeAgent(torch.mean(Qc_actor), self.writer_counter, self.algo, 'Qc_actor mean')    
+        writeAgent(torch.mean(Qc_target), self.writer_counter, self.algo, 'Qc_target mean')    
+        writeAgent(loss_Vc, self.writer_counter, self.algo, 'loss Vc')    
+        writeAgent(loss_Qc, self.writer_counter, self.algo, 'loss Qc')    
+        writeAgent(loss_actor, self.writer_counter, self.algo, 'loss actor')    
         self.writer_counter = self.writer_counter + 1     
 
     def sample_action_with_prob(self, state: torch.Tensor):
