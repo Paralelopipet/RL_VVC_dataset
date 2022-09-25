@@ -85,6 +85,7 @@ class Agent:
 
         # Set target cost
         self.target_cost = (
+            # max training steps, online_training_steps * num_of_epochs
             self.cost_limit * (1 - self.discount**self.online_training_steps) / (1 - self.discount) / self.online_training_steps
         )
 
@@ -163,6 +164,7 @@ class Agent:
         
         # norm is Normal(mean = 0,sigma = 1), norm.ppf - inverse cdf
         pdf_cdf = self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) # maybe try logpdf
+        # original impl normal.log_prob(normal.icdf(torch.tensor(self.risk_level))).exp() / self.risk_level
         # WCSAC paper Equation 9
         cvar = Qc_current + pdf_cdf * torch.sqrt(Vc_current)
         

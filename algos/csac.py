@@ -169,6 +169,8 @@ class Agent:
             prob.append(prob_all[ii][range(torch.numel(samples)), samples])
         return torch.stack(a, dim=1), torch.stack(prob, dim=1)
 
+
+
     def act_probabilistic(self, state: torch.Tensor):
         prob_all = self.actor(state)
         a = []
