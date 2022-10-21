@@ -66,6 +66,8 @@ def offline_vvc(config):
 
     for iter in tqdm(range(RL_steps), desc="Offline training"):
         agent.update(replay)  # update NN parameters during offline training (while using historical data set)
+        #The update() method inserts the specified items to the dictionary.
+
 
     offline_res = {'agent': agent,
                    'env': env,
@@ -182,7 +184,7 @@ def online_vvc(config, offline_rec):
     for epoch in tqdm(range(num_epochs), desc="Online training"):
         env.reset(Mode.ONLINE)
         test_env.reset(Mode.TEST)
-        
+
         for iter in tqdm(range(env.len_online), desc="Online training_epoch{}".format(epoch)):
             s = env.state
             a = agent.act_probabilistic(torch.from_numpy(s)[None, :])
@@ -253,17 +255,20 @@ def test_vvc_verbose(online_res):
     capacitor_status = []
     oltc_position = []
     max_min_voltage = []
+    voltage_all_buses = []
     feeder_kW = []
     feeder_kVar = []
 
     for i in range(len_step):
         s = env.state
         a = agent.act_deterministic(torch.from_numpy(s)[None, :])
-        s_next, reward, done, info = env.step(a)
+        s_next, reward_loss, reward_constraint, done, info = env.step(a)
 
         action = a
 
         voltage = info['v']
+        voltage_pu = info['v_pu']
+
 
         load_kW = info['load_kw']
         load_kVar = info['load_kvar']
@@ -274,6 +279,7 @@ def test_vvc_verbose(online_res):
         oltc_position.append(action[:num_of_oltc])
         capacitor_status.append(action[num_of_oltc:])
         max_min_voltage.append(_max_min_volt(voltage))
+        voltage_all_buses.append(voltage_pu)
         feeder_kW.append(aggregated_load_kW)
         feeder_kVar.append(aggregated_load_kVar)
 
@@ -282,6 +288,7 @@ def test_vvc_verbose(online_res):
                     'voltage': np.array(max_min_voltage),
                     'active power feeder': np.array(feeder_kW),
                     'reactive power feeder': np.array(feeder_kVar),
+                    'voltage all buses': np.array(voltage_all_buses),
                     'len_step': len_step}
 
     print(test_vvc_res)
@@ -289,6 +296,7 @@ def test_vvc_verbose(online_res):
     return test_vvc_res
 
 def deleteAllTensorboardFiles():
-    files = glob.glob('log/*')
+    files = glob.glob('log/*') # find the files and folders inside log folder
     for f in files:
         shutil.rmtree(f)
+        # The rmtree('path') deletes an entire directory tree (including subdirectories under it).

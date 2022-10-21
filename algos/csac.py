@@ -51,17 +51,17 @@ class Agent:
         self.Vc_tar = VConstraintNet(dim_state=self.dim_state,
                                 dims_hidden_neurons=self.dims_hidden_neurons)
 
-        self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
-        self.optimizer_Q1 = torch.optim.Adam(self.Q1.parameters(), lr=self.lr)
-        self.optimizer_Q2 = torch.optim.Adam(self.Q2.parameters(), lr=self.lr)
-        self.optimizer_V = torch.optim.Adam(self.V.parameters(), lr=self.lr)
-        self.optimizer_Qc1 = torch.optim.Adam(self.Qc1.parameters(), lr=self.lr)
-        self.optimizer_Qc2 = torch.optim.Adam(self.Qc2.parameters(), lr=self.lr)
-        self.optimizer_Vc = torch.optim.Adam(self.Vc.parameters(), lr=self.lr)
+        self.optimizer_actor = torch.optim.AdamW(self.actor.parameters(), lr=self.lr)
+        self.optimizer_Q1 = torch.optim.AdamW(self.Q1.parameters(), lr=self.lr)
+        self.optimizer_Q2 = torch.optim.AdamW(self.Q2.parameters(), lr=self.lr)
+        self.optimizer_V = torch.optim.AdamW(self.V.parameters(), lr=self.lr)
+        self.optimizer_Qc1 = torch.optim.AdamW(self.Qc1.parameters(), lr=self.lr)
+        self.optimizer_Qc2 = torch.optim.AdamW(self.Qc2.parameters(), lr=self.lr)
+        self.optimizer_Vc = torch.optim.AdamW(self.Vc.parameters(), lr=self.lr)
 
 
         self.lagrange_multiplier = torch.tensor(config['algo']['lagrange_multiplier'], requires_grad=True)#
-        self.lagrange_optimiser = torch.optim.Adam([self.lagrange_multiplier], lr=config['algo']['step_lagrange'])
+        self.lagrange_optimiser = torch.optim.AdamW([self.lagrange_multiplier], lr=config['algo']['step_lagrange'])
         self.step_policy = config['algo']['step_policy']
         self.algo = config['algo']['algo']
 

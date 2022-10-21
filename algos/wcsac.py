@@ -12,6 +12,7 @@ from typing import Tuple
 from .algo_utils import int2D_to_grouponehot
 
 from scipy.stats import norm
+import torch.distributions as tdist
 
 class Agent:
     def __init__(self, config, env):
@@ -24,11 +25,15 @@ class Agent:
         self.alpha = config['algo']['alpha']
         self.batch_size = config['algo']['batch_size']
         self.dims_hidden_neurons = config['algo']['dims_hidden_neurons']
+        self.damp_scale = config['algo']['damp_scale']
+        self.cost_limit = config['algo']['cost_limit']
+        self.init_temperature = config['algo']['init_temperature']
 
         self.dim_state = env.dim_state
         self.dims_action = env.dims_action
         self.num_device = len(self.dims_action)
         self.online_training_steps = config['algo']['online_training_steps']
+        self.max_episode_len = config['algo']['max_episode_len']
 
         self.actor = ActorNet(dim_state=self.dim_state,
                               dims_action=self.dims_action,
@@ -55,20 +60,16 @@ class Agent:
                             dims_hidden_neurons=self.dims_hidden_neurons)
         self.Vc_tar = copy.deepcopy(self.Vc)
 
-        self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
-        self.optimizer_Q1 = torch.optim.Adam(self.Q1.parameters(), lr=self.lr)
-        self.optimizer_Q2 = torch.optim.Adam(self.Q2.parameters(), lr=self.lr)
-        self.optimizer_Qc = torch.optim.Adam(self.Qc.parameters(), lr=self.lr)
-        self.optimizer_Vc = torch.optim.Adam(self.Vc.parameters(), lr=self.lr)
+        self.optimizer_actor = torch.optim.AdamW(self.actor.parameters(), lr=self.lr)
+        self.optimizer_Q1 = torch.optim.AdamW(self.Q1.parameters(), lr=self.lr)
+        self.optimizer_Q2 = torch.optim.AdamW(self.Q2.parameters(), lr=self.lr)
+        self.optimizer_Qc = torch.optim.AdamW(self.Qc.parameters(), lr=self.lr)
+        self.optimizer_Vc = torch.optim.AdamW(self.Vc.parameters(), lr=self.lr)
 
-        self.step_policy = config['algo']['step_policy']
+        #self.step_policy = config['algo']['step_policy']
         self.algo = config['algo']['algo']
         self.writer_counter = 0
 
-        # wcsac specific parameters
-        self.damp_scale = 1 # 0 for not in use, 10 in original algorithm
-        self.cost_limit = 15 # 15 in original algo, eq 10, parameter d
-        self.init_temperature = 0.692
         #beta in paper - adaptive entropy
         self.log_beta = torch.tensor(np.log(self.init_temperature)) 
         self.log_beta.requires_grad = True
@@ -77,16 +78,16 @@ class Agent:
         self.log_kappa.requires_grad = True
 
         # beta and kappa optimizers
-        self.beta_optimizer = torch.optim.Adam([self.log_beta], lr=self.lr)
-        self.kappa_optimizer = torch.optim.Adam([self.log_kappa], lr=self.lr)
+        self.beta_optimizer = torch.optim.AdamW([self.log_beta], lr=self.lr)
+        self.kappa_optimizer = torch.optim.AdamW([self.log_kappa], lr=self.lr)
 
         # Set target entropy to -|A|
         self.target_entropy = self.num_device
 
         # Set target cost
         self.target_cost = (
-            # max training steps, online_training_steps * num_of_epochs
-            self.cost_limit * (1 - self.discount**self.online_training_steps) / (1 - self.discount) / self.online_training_steps
+            # max max_episode_len =1000 in original paper
+            self.cost_limit * (1 - self.discount**self.max_episode_len) / (1 - self.discount) / self.max_episode_len
         )
 
     def update(self, replay):
@@ -130,11 +131,11 @@ class Agent:
                        self.log_beta.exp().detach() * log_action_sample_prob
             Q_target = t.reward_loss + self.discount*(~t.done)*V_target
 
-            # get current and next Qc values
+            # get current and next Qc values EQ (7)
             Qc_current = self.Qc(t.state, action_onehot)
             Qc_next = self.Qc_tar(t.next_state, next_action_sample_onehot)
 
-            #calculate constraint rewards
+            #calculate constraint rewards EQ (8) - WCSAC paper
             Vc_target = t.reward_constraint**2 \
                         - Qc_current**2 \
                         + 2 * self.discount * t.reward_constraint * Qc_next \
@@ -163,9 +164,11 @@ class Agent:
         Vc_current = torch.clamp(Vc_current, min=1e-8, max=1e8)
         
         # norm is Normal(mean = 0,sigma = 1), norm.ppf - inverse cdf
-        pdf_cdf = self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) # maybe try logpdf
-        # original impl normal.log_prob(normal.icdf(torch.tensor(self.risk_level))).exp() / self.risk_level
-        # WCSAC paper Equation 9
+        #pdf_cdf = self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) # maybe try logpdf (Dmajan Code)
+        normal = tdist.normal.Normal(torch.tensor([0.0]), torch.tensor([1.0]))
+        pdf_cdf = normal.log_prob(normal.icdf(torch.tensor(self.alpha))).exp() / self.alpha
+        # original impl normal.log_prob(normal.icdf(torch.tensor(self.risk_level))).exp() / self.risk_level (Orignal code)
+        # WCSAC paper Equation (9)
         cvar = Qc_current + pdf_cdf * torch.sqrt(Vc_current)
         
         # damp is introduced in 
@@ -186,8 +189,8 @@ class Agent:
         loss_Q1 = torch.mean((self.Q1(t.state, action_onehot) - Q_target) ** 2)
         loss_Q2 = torch.mean((self.Q2(t.state, action_onehot) - Q_target) ** 2)
         loss_Qc = torch.mean((self.Qc(t.state, action_onehot) - Qc_target) ** 2)
-        # loss_Vc = torch.mean(Vc_current + Vc_target - torch.sign(Vc_target * Vc_current) * 2*torch.sqrt(abs(Vc_target * Vc_current)))
-        loss_Vc = torch.mean(Vc_current + Vc_target - 2*torch.sqrt(abs(Vc_target * Vc_current)))
+        loss_Vc = torch.mean(Vc_current + Vc_target - torch.sign(Vc_target * Vc_current) * 2*torch.sqrt(abs(Vc_target * Vc_current)))
+        #loss_Vc = torch.mean(Vc_current + Vc_target - 2*torch.sqrt(abs(Vc_target * Vc_current)))
 
         # with torch.no_grad():
         #     V = self.V(t.state)
@@ -259,7 +262,9 @@ class Agent:
         writeAgent(torch.min(Vc_current), self.writer_counter, self.algo, 'Vc_current min')    
         writeAgent(torch.mean(Vc_target), self.writer_counter, self.algo, 'Vc_target mean')    
         writeAgent(torch.min(Vc_target), self.writer_counter, self.algo, 'Vc_target min')    
-        writeAgent(torch.mean(Qc_actor), self.writer_counter, self.algo, 'Qc_actor mean')    
+        writeAgent(torch.mean(Qc_actor), self.writer_counter, self.algo, 'Qc_actor mean')
+        writeAgent(torch.mean(Q_actor), self.writer_counter, self.algo, 'Q_actor mean')
+        writeAgent(torch.mean(Vc_actor), self.writer_counter, self.algo, 'Vc_actor mean')
         writeAgent(torch.mean(Qc_target), self.writer_counter, self.algo, 'Qc_target mean')    
         writeAgent(loss_Vc, self.writer_counter, self.algo, 'loss Vc')    
         writeAgent(loss_Qc, self.writer_counter, self.algo, 'loss Qc')    

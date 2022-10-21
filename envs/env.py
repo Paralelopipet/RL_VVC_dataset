@@ -346,6 +346,7 @@ class VVCEnv:
         if info['PF converge']:
             info['loss'] = loss
             info['v'] = volt_120
+            info['v_pu'] = volt_pu
             info['substation_pq'] = substation_pq
         info['switching_steps'] = np.sum(np.round(np.abs(action - self.action_prev)))
         info['action'] = action
