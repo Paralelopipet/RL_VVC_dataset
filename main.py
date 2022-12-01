@@ -9,7 +9,7 @@ from notify import NotifySlack
 
 envs = ['123']
 # envs = ['13']
-algos = ['sac', 'wcsac']
+algos = ['wcsac']
 # = ['sac']
 # seeds = [0, 1, 2]
 seeds = [0]
@@ -46,7 +46,6 @@ for env in envs:
             "test_result": 10,
             "seed": 0,
         }
-
         if algo == 'sac':
             config['algo'] = {
                 "algo": "sac",
@@ -90,9 +89,11 @@ for env in envs:
                 "offline_training_steps": 100,
                 "online_training_steps": 40,
                 "max_episode_len": 1000,
-                "damp_scale": 10,  # 0 for not in use, 10 in original algorithm
+                "damp_scale": 0.1,  # 0 for not in use, 10 in original algorithm
                 "cost_limit": 15,  # 15 in original algo, eq 10, parameter d
-                "init_temperature": 0.6931
+                "init_temperature": 0.399,
+                "betas": [0.9, 0.999],
+                "lr_scale": 1
             }
             config['reward_option'] = RewardOption.CONSTRAINTNOSWITCHING.value
         elif algo == 'dqn':
