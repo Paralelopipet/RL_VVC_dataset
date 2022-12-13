@@ -161,6 +161,7 @@ class Agent:
                         + 2 * self.discount * t.reward_constraint * Qc_next \
                         + self.discount ** 2 * Vc_next \
                         + self.discount ** 2 * Qc_next ** 2
+
             Vc_target = torch.clamp(Vc_target.detach(), min=1e-8, max=1e8)
 
             Qc_target = t.reward_constraint + (self.discount * (~t.done) * Qc_next)
@@ -170,11 +171,11 @@ class Agent:
 
         # Reward Critic
         Q1_actor = self.Q1(t.state, action_sample_onehot)
-        Q1_actor = torch.clamp(Q1_actor, min=1e-8, max=1e8)
+        Q1_actor = torch.clamp(Q1_actor, min=-1e8, max=1e8)
         Q2_actor = self.Q2(t.state, action_sample_onehot)
-        Q2_actor = torch.clamp(Q2_actor, min=1e-8, max=1e8)
+        Q2_actor = torch.clamp(Q2_actor, min=-1e8, max=1e8)
         Q_actor = torch.min(Q1_actor, Q2_actor)
-        Q_actor = torch.clamp(Q_actor, min=1e-8, max=1e8)
+        Q_actor = torch.clamp(Q_actor, min=-1e8, max=1e8)
 
         # Safety Critic with actor actions
         Qc_actor = self.Qc(t.state, action_sample_onehot)
