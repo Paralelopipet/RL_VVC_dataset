@@ -63,7 +63,7 @@ class Agent:
         self.Qc_tar = QConstraintNet(dim_state=self.dim_state,
                                      dims_action=self.dims_action,
                                      dims_hidden_neurons=self.dims_hidden_neurons)
-        self.Vc = VConstraintNet(dim_state=self.dim_state,
+        self.Vc = VConstraintNet(dim_state=self.dim_state, dims_action=self.dims_action,
                                  dims_hidden_neurons=self.dims_hidden_neurons)
         self.Vc_tar = copy.deepcopy(self.Vc)
 
@@ -117,7 +117,7 @@ class Agent:
         next_action_sample, next_action_sample_prob = self.sample_action_with_prob(t.next_state)
         next_action_sample_onehot = int2D_to_grouponehot(indices=next_action_sample, depths=self.dims_action)
 
-        Vcp = self.Vc_tar(t.next_state).detach()
+        Vcp = self.Vc_tar(t.next_state, next_action_sample_onehot).detach()
         Vcp = torch.clamp(Vcp, min=1e-8, max=1e8)
 
         # log sample action in next state
@@ -152,7 +152,7 @@ class Agent:
             Qc_next = self.Qc_tar(t.next_state, next_action_sample_onehot)
 
             # get Vc values
-            Vc_next = self.Vc_tar(t.next_state)
+            Vc_next = self.Vc_tar(t.next_state, next_action_sample_onehot)
             Vc_next = torch.clamp(Vc_next, min=1e-8, max=1e8)
 
             # calculate constraint rewards EQ (8) - WCSAC paper
@@ -179,10 +179,10 @@ class Agent:
 
         # Safety Critic with actor actions
         Qc_actor = self.Qc(t.state, action_sample_onehot)
-        Vc_actor = self.Vc(t.state)
+        Vc_actor = self.Vc(t.state, action_sample_onehot)
         Vc_actor = torch.clamp(Vc_actor, min=1e-8, max=1e8)
 
-        Vc_current = self.Vc(t.state)
+        Vc_current = self.Vc(t.state, action_onehot)
         Vc_current = torch.clamp(Vc_current, min=1e-8, max=1e8)
 
         # norm is Normal(mean = 0,sigma = 1), norm.ppf - inverse cdf
@@ -439,7 +439,34 @@ class QConstraintNet(nn.Module):
             x = eval('torch.relu(self.layer{}(x))'.format(i + 1))
         return self.output(x)
 
+class VConstraintNet(nn.Module):
+    def __init__(self,
+                 dim_state: int,
+                 dims_action: Tuple[int],
+                 dims_hidden_neurons: Tuple[int]):
+        super(VConstraintNet, self).__init__()
+        self.n_layers = len(dims_hidden_neurons)
+        self.dims_action = dims_action
 
+        n_neurons = (dim_state + sum(dims_action),) + dims_hidden_neurons + (1,)
+        for i, (dim_in, dim_out) in enumerate(zip(n_neurons[:-2], n_neurons[1:-1])):
+            layer = nn.Linear(dim_in, dim_out).double()
+            # nn.Linear: input: (batch_size, n_feature)
+            #            output: (batch_size, n_output)
+            torch.nn.init.xavier_uniform_(layer.weight)
+            torch.nn.init.zeros_(layer.bias)
+            exec('self.layer{} = layer'.format(i + 1))
+
+        self.output = nn.Linear(n_neurons[-2], n_neurons[-1]).double()
+        torch.nn.init.xavier_uniform_(self.output.weight)
+        torch.nn.init.zeros_(self.output.bias)
+
+    def forward(self, state: torch.Tensor, action: torch.Tensor):
+        x = torch.cat((state, action), dim=1)
+        for i in range(self.n_layers):
+            x = eval('torch.relu(self.layer{}(x))'.format(i + 1))
+        return self.output(x)
+'''
 class VConstraintNet(nn.Module):
     def __init__(self,
                  dim_state: int,
@@ -463,3 +490,4 @@ class VConstraintNet(nn.Module):
         for i in range(self.n_layers):
             x = eval('torch.relu(self.layer{}(x))'.format(i + 1))
         return self.output(x)
+'''
