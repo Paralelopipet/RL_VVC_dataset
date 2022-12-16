@@ -125,7 +125,7 @@ def test_vvc(env, agent, replay, scale_reward, config, epoch):
         s = env.state
         a = agent.act_deterministic(torch.from_numpy(s)[None, :])
         s_next, reward_loss, reward_constraint, done, info = env.step(a)
-        reward = reward_constraint + reward_loss
+        reward = - reward_constraint + reward_loss
         replay.add(state=torch.from_numpy(s),
                    action=torch.from_numpy(a),
                    reward_loss=torch.from_numpy(np.array([reward_loss * scale_reward])),
@@ -140,7 +140,7 @@ def test_vvc(env, agent, replay, scale_reward, config, epoch):
         v_max_vio.append(_max_volt_vio(v_rl))
         if (config['algo']['algo'] == 'csac'):
             reward_loss_diff.append(reward_loss - info['baseline_reward_loss'])
-            reward_constraint_diff.append(reward_constraint - info['baseline_reward_constraint'])
+            reward_constraint_diff.append(-reward_constraint - info['baseline_reward_constraint'])
 
         # add to tensorboard
         if iter%tensor_running == 0:
@@ -189,7 +189,7 @@ def online_vvc(config, offline_rec):
             s = env.state
             a = agent.act_probabilistic(torch.from_numpy(s)[None, :])
             s_next, reward_loss, reward_constraint, done, info = env.step(a)
-            reward = reward_loss + reward_constraint
+            reward = reward_loss - reward_constraint
             replay.add(state=torch.from_numpy(s),
                        action=torch.from_numpy(a),
                        reward_loss=torch.from_numpy(np.array([reward_loss * scale_reward])),

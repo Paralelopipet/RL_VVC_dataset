@@ -161,6 +161,11 @@ class Agent:
                         + 2 * self.discount * t.reward_constraint * Qc_next \
                         + self.discount ** 2 * Vc_next \
                         + self.discount ** 2 * Qc_next ** 2
+            #print('reward_constraint ', t.reward_constraint)
+            #print('Qc_current ', Qc_current)
+            #print('Qc_next ', Qc_next)
+            #print('Vc_next ', Vc_next)
+            #print('-----------------------------------------------')
 
             Vc_target = torch.clamp(Vc_target.detach(), min=1e-8, max=1e8)
 

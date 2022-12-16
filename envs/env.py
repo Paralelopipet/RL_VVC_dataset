@@ -276,7 +276,7 @@ class VVCEnv:
                             np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
                             loss / self.basekVA * self.coef_loss)
             elif self.reward_option in ('5'):
-                reward_constraint = - np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt
+                reward_constraint = np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt
                 reward_loss = - loss / self.basekVA * self.coef_loss
             elif self.reward_option in ('6'):
                 reward_loss = - (np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
