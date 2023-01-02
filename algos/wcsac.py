@@ -42,19 +42,17 @@ class Agent:
         self.actor = ActorNet(dim_state=self.dim_state,
                               dims_action=self.dims_action,
                               dims_hidden_neurons=self.dims_hidden_neurons)
+
         self.Q1 = QCriticNet(dim_state=self.dim_state,
-                             dims_action=self.dims_action,
-                             dims_hidden_neurons=self.dims_hidden_neurons)
-        self.Q2 = QCriticNet(dim_state=self.dim_state,
                              dims_action=self.dims_action,
                              dims_hidden_neurons=self.dims_hidden_neurons)
         self.Q1_tar = QCriticNet(dim_state=self.dim_state,
                                  dims_action=self.dims_action,
                                  dims_hidden_neurons=self.dims_hidden_neurons)
+        self.Q2 = QCriticNet(dim_state=self.dim_state,
+                             dims_action=self.dims_action,
+                             dims_hidden_neurons=self.dims_hidden_neurons)
         self.Q2_tar = QCriticNet(dim_state=self.dim_state,
-                                 dims_action=self.dims_action,
-                                 dims_hidden_neurons=self.dims_hidden_neurons)
-        self.critic = QCriticNet(dim_state=self.dim_state,
                                  dims_action=self.dims_action,
                                  dims_hidden_neurons=self.dims_hidden_neurons)
         self.Qc = QConstraintNet(dim_state=self.dim_state,
@@ -64,22 +62,20 @@ class Agent:
                                      dims_action=self.dims_action,
                                      dims_hidden_neurons=self.dims_hidden_neurons)
         self.Vc = VConstraintNet(dim_state=self.dim_state,
+                                 dims_action=self.dims_action,
                                  dims_hidden_neurons=self.dims_hidden_neurons)
-        self.Vc_tar = copy.deepcopy(self.Vc)
-
-        self.safety_critic = QConstraintNet(dim_state=self.dim_state,
-                                                 dims_action=self.dims_action,
-                                                 dims_hidden_neurons=self.dims_hidden_neurons)
+        self.Vc_tar = VConstraintNet(dim_state=self.dim_state,
+                                     dims_action=self.dims_action,
+                                     dims_hidden_neurons=self.dims_hidden_neurons)
 
         self.optimizer_actor = torch.optim.AdamW(self.actor.parameters(), lr=self.lr, betas=self.betas)
-
-        self.all_critics_optimizer = torch.optim.AdamW(chain(self.critic.parameters(), self.safety_critic.parameters()),
-                                                       lr=self.lr, betas=self.betas)
-
         self.optimizer_Q1 = torch.optim.AdamW(self.Q1.parameters(), lr=self.lr, betas=self.betas)
         self.optimizer_Q2 = torch.optim.AdamW(self.Q2.parameters(), lr=self.lr, betas=self.betas)
         self.optimizer_Qc = torch.optim.AdamW(self.Qc.parameters(), lr=self.lr, betas=self.betas)
         self.optimizer_Vc = torch.optim.AdamW(self.Vc.parameters(), lr=self.lr, betas=self.betas)
+
+        #self.all_critics_optimizer = torch.optim.AdamW(chain(self.Q1.parameters(), self.Q2.parameters(),
+                                                             #self.Qc.parameters(), self.Vc.parameters()),lr=self.lr, betas=self.betas)
 
         # self.step_policy = config['algo']['step_policy']
         self.algo = config['algo']['algo']
@@ -117,7 +113,8 @@ class Agent:
         next_action_sample, next_action_sample_prob = self.sample_action_with_prob(t.next_state)
         next_action_sample_onehot = int2D_to_grouponehot(indices=next_action_sample, depths=self.dims_action)
 
-        Vcp = self.Vc_tar(t.next_state).detach()
+        #Vcp = self.Vc_tar(t.next_state).detach()
+        Vcp = self.Vc_tar(t.next_state, next_action_sample_onehot).detach()
         Vcp = torch.clamp(Vcp, min=1e-8, max=1e8)
 
         # log sample action in next state
@@ -126,63 +123,57 @@ class Agent:
             log_action_sample_prob += torch.log(next_action_sample_prob[:, ii:ii + 1] + 1e-10)
 
         # compute Q target and V target
-        with torch.no_grad():
-            action_onehot = int2D_to_grouponehot(indices=t.action.long(), depths=self.dims_action)
-            # previos code
-            # Q_target = t.reward_loss - self.lagrange_multiplier * t.reward_constraint + self.discount*(~t.done)*Vp
-            # Qc_target = t.reward_constraint + self.discount*(~t.done)*Vcp
-            # V_target = torch.min(self.Q1(t.state, action_sample_onehot),
-            #                           self.Q2(t.state, action_sample_onehot)) - \
-            #            self.alpha * log_action_sample_prob
-            # Vc_target = torch.max(self.Q1(t.state, action_sample_onehot),
-            #                           self.Q2(t.state, action_sample_onehot)) - \
-            #            self.alpha * log_action_sample_prob
 
-            # new code
-            Q1_target = self.Q1_tar(t.next_state, next_action_sample_onehot)
-            Q2_target = self.Q2_tar(t.next_state, next_action_sample_onehot)
+        action_onehot = int2D_to_grouponehot(indices=t.action.long(), depths=self.dims_action)
 
-            # V target is estimated from min Q_target
-            V_target = torch.min(Q1_target, Q2_target) - self.log_beta.exp().detach() * log_action_sample_prob
-            Q_target = t.reward_loss + self.discount * (~t.done) * V_target
-            # Q_target = Q_target.detach()
+        Q1_current = self.Q1(t.state, action_onehot)
+        Q2_current = self.Q2(t.state, action_onehot)
 
-            # get current and next Qc values EQ (7)
-            Qc_current = self.Qc(t.state, action_onehot)
-            Qc_next = self.Qc_tar(t.next_state, next_action_sample_onehot)
+        Q1_target = self.Q1_tar(t.next_state, next_action_sample_onehot)
+        Q2_target = self.Q2_tar(t.next_state, next_action_sample_onehot)
 
-            # get Vc values
-            Vc_next = self.Vc_tar(t.next_state)
-            Vc_next = torch.clamp(Vc_next, min=1e-8, max=1e8)
+        # V target is estimated from min Q_target
+        V_target = torch.min(Q1_target, Q2_target) - self.log_beta.exp().detach() * log_action_sample_prob
+        Q_target = t.reward_loss + self.discount * (~t.done) * V_target
+        Q_target = Q_target.detach()
 
-            # calculate constraint rewards EQ (8) - WCSAC paper
-            Vc_target = t.reward_constraint ** 2 \
-                        - Qc_current ** 2 \
-                        + 2 * self.discount * t.reward_constraint * Qc_next \
-                        + self.discount ** 2 * Vc_next \
-                        + self.discount ** 2 * Qc_next ** 2
-            Vc_target = torch.clamp(Vc_target.detach(), min=1e-8, max=1e8)
+        # get current and next Qc values EQ (7)
+        Qc_current = self.Qc(t.state, action_onehot)
+        Vc_current = self.Vc(t.state, action_onehot)
+        Vc_current = torch.clamp(Vc_current, min=1e-8, max=1e8)
 
-            Qc_target = t.reward_constraint + (self.discount * (~t.done) * Qc_next)
-            Qc_target = Qc_target.detach()
+        Qc_next = self.Qc_tar(t.next_state, next_action_sample_onehot)
+        Vc_next = self.Vc_tar(t.next_state, next_action_sample_onehot)
+        Vc_next = torch.clamp(Vc_next, min=1e-8, max=1e8)
+
+        # calculate constraint rewards EQ (8) - WCSAC paper
+        Qc_target = t.reward_constraint + (self.discount * (~t.done) * Qc_next)
+        Vc_target = t.reward_constraint ** 2 \
+                    - Qc_current ** 2 \
+                    + 2 * self.discount * t.reward_constraint * Qc_next \
+                    + self.discount ** 2 * Vc_next \
+                    + self.discount ** 2 * Qc_next ** 2
+
+        print('reward_constraint ', t.reward_constraint)
+        print('Qc_current ', Qc_current)
+        print('Qc_next ', Qc_next)
+        print('Vc_next ', Vc_next)
+        print('-----------------------------------------------')
+
+        Qc_target = Qc_target.detach()
+        Vc_target = torch.clamp(Vc_target.detach(), min=1e-8, max=1e8)
 
         ############### update actor and alpha beta ###############
 
         # Reward Critic
         Q1_actor = self.Q1(t.state, action_sample_onehot)
-        Q1_actor = torch.clamp(Q1_actor, min=1e-8, max=1e8)
         Q2_actor = self.Q2(t.state, action_sample_onehot)
-        Q2_actor = torch.clamp(Q2_actor, min=1e-8, max=1e8)
         Q_actor = torch.min(Q1_actor, Q2_actor)
-        Q_actor = torch.clamp(Q_actor, min=1e-8, max=1e8)
 
         # Safety Critic with actor actions
         Qc_actor = self.Qc(t.state, action_sample_onehot)
-        Vc_actor = self.Vc(t.state)
+        Vc_actor = self.Vc(t.state, action_sample_onehot)
         Vc_actor = torch.clamp(Vc_actor, min=1e-8, max=1e8)
-
-        Vc_current = self.Vc(t.state)
-        Vc_current = torch.clamp(Vc_current, min=1e-8, max=1e8)
 
         # norm is Normal(mean = 0,sigma = 1), norm.ppf - inverse cdf
         # pdf_cdf = self.alpha**(-1) * norm.pdf(norm.ppf(self.alpha)) # maybe try logpdf (Dmajan Code)
@@ -208,8 +199,8 @@ class Agent:
         )
 
         # Reward Critic Loss
-        loss_Q1 = torch.mean((self.Q1(t.state, action_onehot) - Q_target) ** 2)
-        loss_Q2 = torch.mean((self.Q2(t.state, action_onehot) - Q_target) ** 2)
+        loss_Q1 = torch.mean((Q1_current - Q_target) ** 2)
+        loss_Q2 = torch.mean((Q2_current - Q_target) ** 2)
         critic_loss = loss_Q1 + loss_Q2
 
         # Safety Critic Loss
@@ -221,9 +212,9 @@ class Agent:
         # Jointly optimize Reward and Safety Critics
         total_loss = critic_loss + safety_critic_loss
 
-        self.all_critics_optimizer.zero_grad()
-        total_loss.backward(retain_graph=True)
-        self.all_critics_optimizer.step()
+        #self.all_critics_optimizer.zero_grad()
+        #total_loss.backward(retain_graph=True)
+        #self.all_critics_optimizer.step()
 
         self.optimizer_actor.zero_grad()
         loss_actor.backward(retain_graph=True)
@@ -256,16 +247,6 @@ class Agent:
         kappa_loss.backward()
         self.kappa_optimizer.step()
 
-        # update V target and Vc target parameters
-        # with torch.no_grad():
-        # for p, p_tar in zip(self.Q1.parameters(), self.Q1_tar.parameters()):
-        # p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
-        # for p, p_tar in zip(self.Q2.parameters(), self.Q2_tar.parameters()):
-        # p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
-        # for p, p_tar in zip(self.Vc.parameters(), self.Vc_tar.parameters()):
-        # p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
-        # for p, p_tar in zip(self.Qc.parameters(), self.Qc_tar.parameters()):
-        # p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
 
         # add to tensorboard
         writeAgent(self.log_beta, self.writer_counter, self.algo, 'log beta')
@@ -422,8 +403,6 @@ class QConstraintNet(nn.Module):
         n_neurons = (dim_state + sum(dims_action),) + dims_hidden_neurons + (1,)
         for i, (dim_in, dim_out) in enumerate(zip(n_neurons[:-2], n_neurons[1:-1])):
             layer = nn.Linear(dim_in, dim_out).double()
-            # nn.Linear: input: (batch_size, n_feature)
-            #            output: (batch_size, n_output)
             torch.nn.init.xavier_uniform_(layer.weight)
             torch.nn.init.zeros_(layer.bias)
             exec('self.layer{} = layer'.format(i + 1))
@@ -438,17 +417,18 @@ class QConstraintNet(nn.Module):
             x = eval('torch.relu(self.layer{}(x))'.format(i + 1))
         return self.output(x)
 
-
 class VConstraintNet(nn.Module):
     def __init__(self,
                  dim_state: int,
+                 dims_action: Tuple[int],
                  dims_hidden_neurons: Tuple[int]):
         super(VConstraintNet, self).__init__()
         self.n_layers = len(dims_hidden_neurons)
+        self.dims_action = dims_action
 
-        n_neurons = (dim_state,) + dims_hidden_neurons + (1,)
-        for i, (fan_in, fan_out) in enumerate(zip(n_neurons[:-2], n_neurons[1:-1])):
-            layer = nn.Linear(fan_in, fan_out).double()
+        n_neurons = (dim_state + sum(dims_action),) + dims_hidden_neurons + (1,)
+        for i, (dim_in, dim_out) in enumerate(zip(n_neurons[:-2], n_neurons[1:-1])):
+            layer = nn.Linear(dim_in, dim_out).double()
             torch.nn.init.xavier_uniform_(layer.weight)
             torch.nn.init.zeros_(layer.bias)
             exec('self.layer{} = layer'.format(i + 1))
@@ -457,8 +437,8 @@ class VConstraintNet(nn.Module):
         torch.nn.init.xavier_uniform_(self.output.weight)
         torch.nn.init.zeros_(self.output.bias)
 
-    def forward(self, state: torch.Tensor):
-        x = state
+    def forward(self, state: torch.Tensor, action: torch.Tensor):
+        x = torch.cat((state, action), dim=1)
         for i in range(self.n_layers):
             x = eval('torch.relu(self.layer{}(x))'.format(i + 1))
         return self.output(x)

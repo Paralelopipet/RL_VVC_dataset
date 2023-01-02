@@ -138,13 +138,13 @@ def test_vvc(env, agent, replay, scale_reward, config, epoch):
         reward_pure.append(reward)
         reward_diff.append(reward - info['baseline_reward'])
         v_max_vio.append(_max_volt_vio(v_rl))
-        if (config['algo']['algo'] == 'csac'):
+        if (config['algo']['algo'] == 'csac') or (config['algo']['algo'] == 'wcsac'):
             reward_loss_diff.append(reward_loss - info['baseline_reward_loss'])
             reward_constraint_diff.append(reward_constraint - info['baseline_reward_constraint'])
 
         # add to tensorboard
         if iter%tensor_running == 0:
-            if (config['algo']['algo'] == 'csac'):
+            if (config['algo']['algo'] == 'csac') or (config['algo']['algo'] == 'wcsac'):
                 writer.add_scalar('reward loss diff' ,np.mean(reward_loss_diff[-tensor_running:]), epoch*env.len_test+iter)
                 writer.add_scalar('reward constraint diff' , np.mean(reward_constraint_diff[-tensor_running:]), epoch*env.len_test+iter)
             writer.add_scalar('reward diff' , np.mean(reward_diff[-tensor_running:]), epoch*env.len_test+iter)
@@ -201,7 +201,7 @@ def online_vvc(config, offline_rec):
             v_rl = info['v']
 
             # train reward and max v
-            if config['algo']['algo'] == 'csac':
+            if (config['algo']['algo'] == 'csac') or (config['algo']['algo'] == 'wcsac'):
                 reward_loss_diff.append(reward_loss - info['baseline_reward_loss'])
                 reward_constraint_diff.append(reward_constraint - info['baseline_reward_constraint'])
             reward_diff.append(reward - info['baseline_reward'])
@@ -210,7 +210,7 @@ def online_vvc(config, offline_rec):
 
             # add to tensorboard
             if iter%tensor_running == 0:
-                if (config['algo']['algo'] == 'csac'):
+                if (config['algo']['algo'] == 'csac') or (config['algo']['algo'] == 'wcsac'):
                     writer.add_scalar('reward loss diff' ,np.mean(reward_loss_diff[-tensor_running:]), epoch*env.len_online+iter)
                     writer.add_scalar('reward constraint diff' , np.mean(reward_constraint_diff[-tensor_running:]), epoch*env.len_online+iter)
                 writer.add_scalar('reward diff' , np.mean(reward_diff[-tensor_running:]), epoch*env.len_online+iter)

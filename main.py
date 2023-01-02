@@ -9,7 +9,7 @@ from notify import NotifySlack
 
 envs = ['123']
 # envs = ['13']
-algos = ['wcsac']
+algos = ['sac','wcsac']
 # = ['sac']
 # seeds = [0, 1, 2]
 seeds = [0]
@@ -46,7 +46,22 @@ for env in envs:
             "test_result": 10,
             "seed": 0,
         }
-        if algo == 'sac':
+        if algo == 'dqn':
+            config['algo'] = {
+                "algo": "dqn",
+                "dims_hidden_neurons": (120, 120),
+                "scale_reward": 5.0,
+                "discount": 0.95,
+                "batch_size": 64,
+                "lr": 0.0005,
+                "copy_steps": 10,
+                "eps_len": 500,
+                "eps_max": 1.0,
+                "eps_min": 0.02,
+                "offline_training_steps": 100,
+                "online_training_steps": 5,
+            }
+        elif algo == 'sac':
             config['algo'] = {
                 "algo": "sac",
                 "dims_hidden_neurons": (120, 120),
@@ -57,7 +72,7 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 40,
+                "online_training_steps": 10,
             }
         elif algo == 'csac':
             config['algo'] = {
@@ -87,30 +102,15 @@ for env in envs:
                 "lr": 0.001,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 40,
-                "max_episode_len": 1000,
-                "damp_scale": 0.1,  # 0 for not in use, 10 in original algorithm
+                "online_training_steps": 10,
+                "max_episode_len": 2,
+                "damp_scale": 1,  # 0 for not in use, 10 in original algorithm
                 "cost_limit": 15,  # 15 in original algo, eq 10, parameter d
-                "init_temperature": 0.399,
+                "init_temperature": 0.6931,
                 "betas": [0.9, 0.999],
                 "lr_scale": 1
             }
             config['reward_option'] = RewardOption.CONSTRAINTNOSWITCHING.value
-        elif algo == 'dqn':
-            config['algo'] = {
-                "algo": "dqn",
-                "dims_hidden_neurons": (120, 120),
-                "scale_reward": 5.0,
-                "discount": 0.95,
-                "batch_size": 64,
-                "lr": 0.0005,
-                "copy_steps": 10,
-                "eps_len": 500,
-                "eps_max": 1.0,
-                "eps_min": 0.02,
-                "offline_training_steps": 100,
-                "online_training_steps": 10,
-            }
         else:
             break
 
