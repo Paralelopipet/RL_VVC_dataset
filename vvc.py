@@ -82,7 +82,8 @@ def _max_volt_vio(v):
     v_vio_max = max(v_max - 1.05 * 120, 0)
     v_vio_min = max(0.95 * 120 - v_min, 0)
     v_vio = max(v_vio_max, v_vio_min)
-    return v_vio
+    v_vio_percent = v_vio * 100 / 120
+    return v_vio_percent
 
 
 def _max_min_volt(v):

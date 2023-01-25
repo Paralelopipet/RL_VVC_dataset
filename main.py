@@ -9,9 +9,9 @@ from notify import NotifySlack
 
 envs = ['123']
 # envs = ['13']
-algos = ['sac','wcsac']
+algos = ['wcsac']
 # = ['sac']
-# seeds = [0, 1, 2]
+#seeds = [0, 1, 2]
 seeds = [0]
 
 # save timestamp
@@ -59,7 +59,7 @@ for env in envs:
                 "eps_max": 1.0,
                 "eps_min": 0.02,
                 "offline_training_steps": 100,
-                "online_training_steps": 5,
+                "online_training_steps": 50,
             }
         elif algo == 'sac':
             config['algo'] = {
@@ -72,7 +72,7 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 10,
+                "online_training_steps": 50,
             }
         elif algo == 'csac':
             config['algo'] = {
@@ -82,7 +82,7 @@ for env in envs:
                 "discount": 0.95,
                 "alpha": .2,
                 "batch_size": 64,
-                "lr": 0.003,
+                "lr": 0.0009,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
                 "online_training_steps": 10,
@@ -99,13 +99,13 @@ for env in envs:
                 "discount": 0.95,
                 "alpha": 0.1,
                 "batch_size": 64,
-                "lr": 0.001,
+                "lr": 0.01,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 10,
-                "max_episode_len": 2,
+                "online_training_steps": 2,
+                "max_episode_len": 1000,
                 "damp_scale": 1,  # 0 for not in use, 10 in original algorithm
-                "cost_limit": 15,  # 15 in original algo, eq 10, parameter d
+                "cost_limit": 0.001,  # 15 in original algo, eq 10, parameter d
                 "init_temperature": 0.6931,
                 "betas": [0.9, 0.999],
                 "lr_scale": 1
@@ -133,12 +133,12 @@ for env in envs:
                 res['test_' + k].append(v)
             # test_vvc_verbose results
 
-            #if seed == 0:
-            #    test_vvc_res = test_vvc_verbose(online_res)
-            #    #since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
-            #    plot_res2(test_vvc_res=test_vvc_res,
-            #              env=env,
-            #              algos=algos)
+            if seed == 0:
+                test_vvc_res = test_vvc_verbose(online_res)
+                #since we do not need to plot results of VVC all over the seeds! just plot the result for 1 seed is enough
+                plot_res2(test_vvc_res=test_vvc_res,
+                          env=env,
+                          algos=algos)
 
         
         with open('./res/data/{}_{}{}.pkl'.format(config['env'],
@@ -154,8 +154,8 @@ metrics1 = ['max voltage violation', 'average max voltage violation', 'reward_di
 
 ylabel1 = {'reward_diff (r - rbaseline)': 'Reward(RL) - Reward(baseline)',
            'average_reward_diff (r - rbaseline)': 'Average Reward(RL) - Reward(baseline)',
-           'max voltage violation': 'Maximum voltage violation (volt)',
-           'average max voltage violation': 'Average Maximum voltage violation (volt)'}
+           'max voltage violation': 'Maximum voltage violation (%)',
+           'average max voltage violation': 'Average Maximum voltage violation (%)'}
 
 for metric in metrics1:
 

@@ -55,10 +55,16 @@ class Agent:
         action_sample, action_sample_prob = self.sample_action_with_prob(t.state)
         action_sample_onehot = int2D_to_grouponehot(indices=action_sample, depths=self.dims_action)
 
+        #print("action_sample", action_sample)
+        #print("action_sample_prob", action_sample_prob)
+
         Vp = self.V_tar(t.next_state).detach()
         log_action_sample_prob = torch.zeros_like(Vp)
         for ii in range(self.num_device):
             log_action_sample_prob += torch.log(action_sample_prob[:, ii:ii+1] + 1e-10)
+
+        #print("log_action_sample_prob", log_action_sample_prob)
+
 
         # compute Q target and V target
         with torch.no_grad():

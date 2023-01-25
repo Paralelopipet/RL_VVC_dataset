@@ -4,7 +4,10 @@ from distutils.command.config import config
 from statistics import mean
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch import distributions as pyd
 from torch.distributions.categorical import Categorical
+
 import numpy as np
 from algos.writer import writeAgent
 
@@ -81,10 +84,11 @@ class Agent:
         self.algo = config['algo']['algo']
         self.writer_counter = 0
 
-        # beta in paper - adaptive entropy
+        # Entropy temperature beta in paper - adaptive entropy
         self.log_beta = torch.tensor(np.log(np.clip(self.init_temperature, 1e-8, 1e8)))
         self.log_beta.requires_grad = True
-        # kappa in paper - safety weights
+
+        # Cost temperature kappa in paper - safety weights
         self.log_kappa = torch.tensor(np.log(np.clip(self.init_temperature, 1e-8, 1e8)))
         self.log_kappa.requires_grad = True
 
@@ -98,8 +102,7 @@ class Agent:
         # Set target cost
         self.target_cost = (
             # max max_episode_len =1000 in original paper
-                self.cost_limit * (1 - self.discount ** self.max_episode_len) / (
-                    1 - self.discount) / self.max_episode_len
+                self.cost_limit * (1 - self.discount ** self.max_episode_len) / (1 - self.discount) / self.max_episode_len
         )
 
     def update(self, replay):
@@ -109,18 +112,22 @@ class Agent:
         action_sample, action_sample_prob = self.sample_action_with_prob(t.state)
         action_sample_onehot = int2D_to_grouponehot(indices=action_sample, depths=self.dims_action)
 
+        #print("action_sample", action_sample)
+        #print("action_sample_prob",action_sample_prob)
+
         # sample next action
         next_action_sample, next_action_sample_prob = self.sample_action_with_prob(t.next_state)
         next_action_sample_onehot = int2D_to_grouponehot(indices=next_action_sample, depths=self.dims_action)
 
-        #Vcp = self.Vc_tar(t.next_state).detach()
-        Vcp = self.Vc_tar(t.next_state, next_action_sample_onehot).detach()
-        Vcp = torch.clamp(Vcp, min=1e-8, max=1e8)
+        #print("next_action_sample_prob", next_action_sample_prob)
 
-        # log sample action in next state
-        log_action_sample_prob = torch.zeros_like(Vcp)
+        Vcp = self.Vc_tar(t.next_state, next_action_sample_onehot).detach()
+        log_next_action_sample_prob = torch.zeros_like(Vcp)
         for ii in range(self.num_device):
-            log_action_sample_prob += torch.log(next_action_sample_prob[:, ii:ii + 1] + 1e-10)
+            log_next_action_sample_prob += torch.log(next_action_sample_prob[:, ii:ii + 1] + 1e-10)
+
+        #print('-----------------------------------------------')
+        #print("log_next_action_sample_prob",log_next_action_sample_prob)
 
         # compute Q target and V target
 
@@ -133,7 +140,7 @@ class Agent:
         Q2_target = self.Q2_tar(t.next_state, next_action_sample_onehot)
 
         # V target is estimated from min Q_target
-        V_target = torch.min(Q1_target, Q2_target) - self.log_beta.exp().detach() * log_action_sample_prob
+        V_target = torch.min(Q1_target, Q2_target) - self.log_beta.exp().detach() * log_next_action_sample_prob
         Q_target = t.reward_loss + self.discount * (~t.done) * V_target
         Q_target = Q_target.detach()
 
@@ -146,7 +153,7 @@ class Agent:
         Vc_next = self.Vc_tar(t.next_state, next_action_sample_onehot)
         Vc_next = torch.clamp(Vc_next, min=1e-8, max=1e8)
 
-        # calculate constraint rewards EQ (8) - WCSAC paper
+        # calculate target current and next Qc values EQ (8) - WCSAC paper
         Qc_target = t.reward_constraint + (self.discount * (~t.done) * Qc_next)
         Vc_target = t.reward_constraint ** 2 \
                     - Qc_current ** 2 \
@@ -154,11 +161,12 @@ class Agent:
                     + self.discount ** 2 * Vc_next \
                     + self.discount ** 2 * Qc_next ** 2
 
-        print('reward_constraint ', t.reward_constraint)
-        print('Qc_current ', Qc_current)
-        print('Qc_next ', Qc_next)
-        print('Vc_next ', Vc_next)
-        print('-----------------------------------------------')
+        #print('reward_constraint ', t.reward_constraint)
+        #print('Qc_current ', Qc_current)
+        #print('Qc_next ', Qc_next)
+        #print('Vc_next ', Vc_next)
+        #print(self.target_cost)
+        #print('-----------------------------------------------')
 
         Qc_target = Qc_target.detach()
         Vc_target = torch.clamp(Vc_target.detach(), min=1e-8, max=1e8)
@@ -182,18 +190,28 @@ class Agent:
         # original impl normal.log_prob(normal.icdf(torch.tensor(self.risk_level))).exp() / self.risk_level (Orignal code)
         # WCSAC paper Equation (9)
         cvar = Qc_current + pdf_cdf * torch.sqrt(Vc_current)
+        #print("cvar is", cvar)
 
         # damp is introduced in
         damp = self.damp_scale * torch.mean(self.target_cost - cvar)
+        #print("damp is",damp)
 
-        # calculate log probability of sample action
-        log_action_prob = torch.zeros_like(Vcp)
+        log_action_sample_prob = torch.zeros_like(Vcp)
         for ii in range(self.num_device):
-            log_action_prob += torch.log(action_sample_prob[:, ii:ii + 1] + 1e-10)
+            log_action_sample_prob += torch.log(action_sample_prob[:, ii:ii + 1] + 1e-10)
+
+        #print("log_action_sample_prob", log_action_sample_prob)
+        #print('-----------------------------------------------')
+        #print("log_action_sample_prob",log_action_sample_prob)
+
+
+
+        landa = Qc_actor + pdf_cdf * torch.sqrt(Vc_actor)
+        #print("lada is:",landa)
 
         # Actor Loss
         loss_actor = torch.mean(
-            self.log_beta.exp().detach() * log_action_prob
+            self.log_beta.exp().detach() * log_action_sample_prob
             - Q_actor
             + (self.log_kappa.exp().detach() - damp) * (Qc_actor + pdf_cdf * torch.sqrt(Vc_actor))
         )
@@ -201,20 +219,11 @@ class Agent:
         # Reward Critic Loss
         loss_Q1 = torch.mean((Q1_current - Q_target) ** 2)
         loss_Q2 = torch.mean((Q2_current - Q_target) ** 2)
-        critic_loss = loss_Q1 + loss_Q2
 
         # Safety Critic Loss
-        loss_Qc = torch.mean((self.Qc(t.state, action_onehot) - Qc_target) ** 2)
+        loss_Qc = torch.mean((Qc_current - Qc_target) ** 2)
         # loss_Vc = torch.mean(Vc_current + Vc_target - torch.sign(Vc_target * Vc_current) * 2*torch.sqrt(abs(Vc_target * Vc_current)))
-        loss_Vc = torch.mean(Vc_current + Vc_target - 2 * torch.sqrt(abs(Vc_target * Vc_current)))
-        safety_critic_loss = loss_Qc + loss_Vc
-
-        # Jointly optimize Reward and Safety Critics
-        total_loss = critic_loss + safety_critic_loss
-
-        #self.all_critics_optimizer.zero_grad()
-        #total_loss.backward(retain_graph=True)
-        #self.all_critics_optimizer.step()
+        loss_Vc = torch.mean(Vc_current + Vc_target - 2 * torch.sqrt(Vc_target * Vc_current))
 
         self.optimizer_actor.zero_grad()
         loss_actor.backward(retain_graph=True)
@@ -238,7 +247,7 @@ class Agent:
 
         # train beta and kappa
         self.beta_optimizer.zero_grad()
-        beta_loss = torch.mean(self.log_beta.exp() * (-log_action_prob - self.target_entropy).detach())
+        beta_loss = torch.mean(self.log_beta.exp() * (-log_action_sample_prob - self.target_entropy).detach())
         beta_loss.backward()
         self.beta_optimizer.step()
 
@@ -290,7 +299,6 @@ class Agent:
             a.append(samples)
         return np.array(a)
 
-
 class ActorNet(nn.Module):
     def __init__(self,
                  dim_state: int,
@@ -335,7 +343,6 @@ class ActorNet(nn.Module):
             transformed_logits_per_device += (transformed_logits,)
             output_per_device += (self.softmax(transformed_logits),)
         return output_per_device
-
 
 class QCriticNet(nn.Module):
     def __init__(self,

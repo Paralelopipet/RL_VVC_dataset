@@ -93,10 +93,10 @@ class VVCEnv:
         self.dim_load = self.load.shape[1]
         self.dim_volt = self.volt.shape[1]
 
-        self.coef_switching = 1
-        self.coef_volt = 1
+        self.coef_switching = 0.1
+        self.coef_volt = 0.5
         if self.reward_option in ('1', '3', '5', '6'):
-            self.coef_loss = 1.0
+            self.coef_loss = 1
         elif self.reward_option in ('2', '4'):
             self.coef_loss = 0.0
 
@@ -269,38 +269,38 @@ class VVCEnv:
         if info['PF converge']:
             if self.reward_option in ('1', '2'):
                 reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
-                            np.sum(np.abs(volt_pu - 1.0)) * self.coef_volt +
-                            loss / self.basekVA * self.coef_loss)
+                                 np.sum(np.abs(volt_pu - 1.0)) * self.coef_volt +
+                                 loss / self.basekVA * self.coef_loss)
             elif self.reward_option in ('3', '4'):
                 reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
-                            np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
-                            loss / self.basekVA * self.coef_loss)
+                                 np.sum(np.logical_or(volt_pu < 0.95, volt_pu > 1.05).astype(float)) * self.coef_volt +
+                                 loss / self.basekVA * self.coef_loss)
             elif self.reward_option in ('5'):
                 reward_constraint = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                                        np.sum(np.abs(volt_pu - 1.0)) * self.coef_volt)
                 reward_loss = - loss / self.basekVA * self.coef_loss
             elif self.reward_option in ('6'):
                 reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
-                            np.sum(np.abs(volt_pu - 1.0)) * self.coef_volt +
-                            loss / self.basekVA * self.coef_loss)
+                                 np.sum(np.abs(volt_pu - 1.0)) * self.coef_volt +
+                                 loss / self.basekVA * self.coef_loss)
 
-        else:  # if PF is not converge put  *100 penalty
+        else:  # if PF is not converge put  *1000000 penalty
             if self.reward_option in ('1', '2'):
                 reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             0.05 * self.dim_volt * self.coef_volt +
-                            1.0 * self.coef_loss) * 100.
+                            1.0 * self.coef_loss) * 1000000.
             elif self.reward_option in ('3', '4'):
                 reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             1.0 * self.dim_volt * self.coef_volt +
-                            1.0 * self.coef_loss) * 100.
+                            1.0 * self.coef_loss) * 1000000.
             elif self.reward_option in ('5'):
                 reward_constraint = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
-                                       1.0 * self.dim_volt * self.coef_volt) * 100.
-                reward_loss = - (1.0 * self.coef_loss) * 100.
+                                       1.0 * self.dim_volt * self.coef_volt) * 1000000.
+                reward_loss = - (1.0 * self.coef_loss) * 1000000.
             elif self.reward_option in ('6'):
                 reward_loss = - (np.sum(np.round(np.abs(action - self.action_prev))) * self.coef_switching +
                             0.05 * self.dim_volt * self.coef_volt +
-                            1.0 * self.coef_loss) * 100.
+                            1.0 * self.coef_loss) * 1000000.
 
         # baseline reward (reward under dss policy)
         baseline_action = np.concatenate([self.ltc_tap[self.global_time, :], self.cap_status[self.global_time, :]])
