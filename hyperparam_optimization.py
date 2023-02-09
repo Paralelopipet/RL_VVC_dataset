@@ -62,7 +62,7 @@ for env in envs:
             "state_option": 2,
             "reward_option": RewardOption.DISCRETEVOLTCIRCUIT.value,
             "offline_split": 0.1,  # initial values
-            "online_split": 0.9,
+            "online_split": 0.8,
             "test_split": 0.1,
             "replay_size": 3000,
             "test_result": 10,
