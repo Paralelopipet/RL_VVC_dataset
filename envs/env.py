@@ -20,7 +20,8 @@ class VVCEnv:
                  reward_option=1,
                  offline_split=0.5,
                  online_split=0.3,
-                 test_split=0.2):
+                 test_split=0.2,
+                 data_dir = None):
         self.env_name = str(env)
         self.state_option = str(state_option)
         self.reward_option = str(reward_option)
@@ -43,43 +44,43 @@ class VVCEnv:
         if self.env_name == '13':
             dss.run_command('Redirect envs/dss_13/IEEE13Nodeckt.dss')
             self.basekVA = 5000.
-            self.ami_data = genfromtxt('./data/processed/first_2897_ami_aggto_580.csv', delimiter=',',
+            self.ami_data = genfromtxt(data_dir + '/data/processed/first_2897_ami_aggto_580.csv', delimiter=',',
                                        max_rows=self.len_total)
             self.ami_data = self.ami_data / (np.mean(self.ami_data, axis=0) * 2.0)
             # the 13 bus feeder is highly loaded, an extra 2.0 is divided
         elif self.env_name == '123':
             dss.run_command('Redirect envs/dss_123/IEEE123Master.dss')
             self.basekVA = 5000.
-            self.ami_data = genfromtxt('./data/processed/first_2897_ami_aggto_580.csv', delimiter=',',
+            self.ami_data = genfromtxt(data_dir + '/data/processed/first_2897_ami_aggto_580.csv', delimiter=',',
                                        max_rows=self.len_total)
             self.ami_data = self.ami_data / (np.mean(self.ami_data, axis=0) * 1.0)
         elif self.env_name == '8500':
             dss.run_command('Redirect envs/dss_8500/Master.dss')
             self.basekVA = 27.5 * 1000
-            self.ami_data = genfromtxt('./data/processed/first_2897_ami.csv', delimiter=',', max_rows=self.len_total)
+            self.ami_data = genfromtxt(data_dir + '/data/processed/first_2897_ami.csv', delimiter=',', max_rows=self.len_total)
             self.ami_data = self.ami_data / (np.mean(self.ami_data, axis=0) * 2.0)
 
         # load info
-        self.load_base, self.load_node = load_info(self.env_name)
+        self.load_base, self.load_node = load_info(self.env_name, data_dir)
 
         # vvc devices
         self.reg_names = dss.RegControls.AllNames()
         self.cap_names = dss.Capacitors.AllNames()
 
         # vvc data (offline & online)
-        self.loss = genfromtxt('./data/processed/{}/loss.csv'.format(self.env_name), delimiter=',',
+        self.loss = genfromtxt(data_dir + '/data/processed/{}/loss.csv'.format(self.env_name), delimiter=',',
                                max_rows=self.len_total)[:, None]
-        self.substation_pq = genfromtxt('./data/processed/{}/substation_pq.csv'.format(self.env_name), delimiter=',',
+        self.substation_pq = genfromtxt(data_dir + '/data/processed/{}/substation_pq.csv'.format(self.env_name), delimiter=',',
                                         max_rows=self.len_total)
-        self.load = genfromtxt('./data/processed/{}/load.csv'.format(self.env_name), delimiter=',',
+        self.load = genfromtxt(data_dir + '/data/processed/{}/load.csv'.format(self.env_name), delimiter=',',
                                max_rows=self.len_total)
-        self.volt = genfromtxt('./data/processed/{}/volt.csv'.format(self.env_name), delimiter=',',
+        self.volt = genfromtxt(data_dir + '/data/processed/{}/volt.csv'.format(self.env_name), delimiter=',',
                                max_rows=self.len_total)
-        self.ltc_tap = genfromtxt('./data/processed/{}/tap.csv'.format(self.env_name), delimiter=',',
+        self.ltc_tap = genfromtxt(data_dir + '/data/processed/{}/tap.csv'.format(self.env_name), delimiter=',',
                                   max_rows=self.len_total)
         if len(self.ltc_tap.shape) == 1:
             self.ltc_tap = self.ltc_tap[:, None]
-        self.cap_status = genfromtxt('./data/processed/{}/status.csv'.format(self.env_name), delimiter=',',
+        self.cap_status = genfromtxt(data_dir + '/data/processed/{}/status.csv'.format(self.env_name), delimiter=',',
                                      max_rows=self.len_total)
 
         self.load_avg = np.average(self.load[:self.len_offline, :], axis=0)

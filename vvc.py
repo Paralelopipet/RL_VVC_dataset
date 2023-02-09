@@ -20,13 +20,14 @@ class Mode(Enum):
     TEST = 3
 
 
-def _env_setup(config):
+def _env_setup(config, data_dir):
     return VVCEnv(config['env'],
                   config['state_option'],
                   config['reward_option'],
                   config['offline_split'],
                   config['online_split'],
-                  config['test_split'])
+                  config['test_split'],
+                  data_dir=data_dir)
 
 
 def _agent_setup(config, env):
@@ -52,14 +53,14 @@ def _data2replay(env, replay, scale_reward):
                    done=done)
 
 
-def offline_vvc(config):
+def offline_vvc(config, data_dir):
     scale_reward = config['algo']['scale_reward']
     RL_steps = config['algo']['offline_training_steps']
 
     replay = ReplayBuffer(replay_size=config['replay_size'],
                               seed=config['seed'])
 
-    env = _env_setup(config)
+    env = _env_setup(config, data_dir)
     env.reset(Mode.OFFLINE)
     _data2replay(env, replay, scale_reward)
     agent = _agent_setup(config, env)

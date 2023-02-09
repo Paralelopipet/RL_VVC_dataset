@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 
-def load_info(env_name):
+def load_info(env_name, data_dir):
     # input: env_name: 13, 123, 8500
     # output:
     #   1. load_base: OrderedDict(key=load name, value=kw, kvar of the IEEE feeders snapshot)
@@ -44,7 +44,7 @@ def load_info(env_name):
             ])
 
     elif str(env_name) == '123':
-        with open("./envs/dss_123/IEEE123Loads.DSS", 'r') as dssfile:
+        with open(data_dir + "/envs/dss_123/IEEE123Loads.DSS", 'r') as dssfile:
             dss_str = dssfile.readlines()
 
         load_base = OrderedDict()
@@ -103,7 +103,7 @@ def load_info(env_name):
                 load_node[name] = phases[p]
 
     elif str(env_name) == '8500':
-        with open("./envs/dss_8500/Loads.dss", 'r') as dssfile:
+        with open(data_dir + "/envs/dss_8500/Loads.dss", 'r') as dssfile:
             dss_str = dssfile.readlines()
 
         load_base = OrderedDict()

@@ -5,7 +5,8 @@ from vvc import offline_vvc, online_vvc, test_vvc_verbose, deleteAllTensorboardF
 from plot import plot_res1, plot_res2
 from datetime import datetime
 from enum import Enum
-from notify import NotifySlack
+import os
+#from notify import NotifySlack
 
 envs = ['123']
 # envs = ['13']
@@ -57,7 +58,7 @@ for env in envs:
                 "lr": 0.0005,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 40,
+                "online_training_steps": 2,
             }
         elif algo == 'csac':
             config['algo'] = {
@@ -70,7 +71,7 @@ for env in envs:
                 "lr": 0.003,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 10,
+                "online_training_steps": 2,
                 "lagrange_multiplier": 1.0,
                 "step_policy": 1,
                 "step_lagrange": 1.0
@@ -87,7 +88,7 @@ for env in envs:
                 "lr": 0.001,
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 40,
+                "online_training_steps": 2,
                 "max_episode_len": 1000,
                 "damp_scale": 0.1,  # 0 for not in use, 10 in original algorithm
                 "cost_limit": 15,  # 15 in original algo, eq 10, parameter d
@@ -121,8 +122,9 @@ for env in envs:
         
 
         for seed in seeds:
+            data_dir = os.path.dirname(__file__)
             config['seed'] = seed
-            offline_res = offline_vvc(config)
+            offline_res = offline_vvc(config, data_dir)
             online_res, test_res = online_vvc(config, offline_res)
 
             # online results
