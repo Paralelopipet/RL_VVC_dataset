@@ -227,5 +227,5 @@ def plot_res2(test_vvc_res, env, algos):
         fig.colorbar(surf, shrink=0.5, aspect=5)
 
     plt.legend()
-    plt.savefig('./res/figs/bus{}_VVC_Result.pdf'.format(env), bbox_inches='tight')
+    #plt.savefig('./res/figs/bus{}_VVC_Result.pdf'.format(env), bbox_inches='tight')
     plt.show()

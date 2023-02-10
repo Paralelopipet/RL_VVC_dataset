@@ -28,8 +28,8 @@ def train_vvc(config, checkpoint_dir=None, data_dir=None):
     tune.report(training_set_reward_diff=training_set_reward_diff, test_set_reward_diff=test_set_reward_diff)
 
 
-envs = ['123']
-#envs = ['13']
+#envs = ['123']
+envs = ['13']
 algos = ['wcsac']
 # = ['sac']
 # seeds = [0, 1, 2]
@@ -79,7 +79,7 @@ for env in envs:
                 "lr": tune.loguniform(1e-5, 1e-2),
                 "smooth": 0.99,
                 "offline_training_steps": 100,
-                "online_training_steps": 10,
+                "online_training_steps": 1,
                 "max_episode_len": 1000,
                 "damp_scale": 0.1,  # 0 for not in use, 10 in original algorithm
                 "cost_limit": 15,  # 15 in original algo, eq 10, parameter d
@@ -111,7 +111,7 @@ result = tune.run(
     resources_per_trial={"cpu": 1, "gpu": 0},
     config=config,
     max_concurrent_trials=1,
-    num_samples=20,
+    num_samples=3,
     scheduler=scheduler,
     progress_reporter=reporter)
 

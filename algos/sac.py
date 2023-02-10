@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 import numpy as np
+from algos.writer import writeAgent
 
 
 from typing import Tuple
@@ -43,6 +44,10 @@ class Agent:
         self.optimizer_Q2 = torch.optim.AdamW(self.Q2.parameters(), lr=self.lr)
         self.optimizer_V = torch.optim.AdamW(self.V.parameters(), lr=self.lr)
 
+        # self.step_policy = config['algo']['step_policy']
+        self.algo = config['algo']['algo']
+        self.writer_counter = 0
+
     def update(self, replay):
         t = replay.sample(self.batch_size)
 
@@ -50,10 +55,16 @@ class Agent:
         action_sample, action_sample_prob = self.sample_action_with_prob(t.state)
         action_sample_onehot = int2D_to_grouponehot(indices=action_sample, depths=self.dims_action)
 
+        #print("action_sample", action_sample)
+        #print("action_sample_prob", action_sample_prob)
+
         Vp = self.V_tar(t.next_state).detach()
         log_action_sample_prob = torch.zeros_like(Vp)
         for ii in range(self.num_device):
             log_action_sample_prob += torch.log(action_sample_prob[:, ii:ii+1] + 1e-10)
+
+        #print("log_action_sample_prob", log_action_sample_prob)
+
 
         # compute Q target and V target
         with torch.no_grad():
@@ -94,6 +105,13 @@ class Agent:
         with torch.no_grad():
             for p, p_tar in zip(self.V.parameters(), self.V_tar.parameters()):
                 p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+
+
+        writeAgent(loss_Q1, self.writer_counter, self.algo, 'loss Q1')
+        writeAgent(loss_Q2, self.writer_counter, self.algo, 'loss Q2')
+        writeAgent(loss_V, self.writer_counter, self.algo, 'loss V')
+        writeAgent(loss_actor, self.writer_counter, self.algo, 'loss actor')
+        self.writer_counter = self.writer_counter + 1
 
     def sample_action_with_prob(self, state: torch.Tensor):
         prob_all = self.actor(state)

@@ -1,10 +1,60 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
     <list default="true" id="0574d330-167f-4d5a-bd45-c423a1ae9439" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/RL_VVC_dataset.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/RL_VVC_dataset.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Practice_to_learn/policy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/algos/sac.py" beforeDir="false" afterPath="$PROJECT_DIR$/algos/sac.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/algos/wcsac.py" beforeDir="false" afterPath="$PROJECT_DIR$/algos/wcsac.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/envs/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/envs/env.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hyperparam_optimization.py" beforeDir="false" afterPath="$PROJECT_DIR$/hyperparam_optimization.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/onlinewcsac/events.out.tfevents.1669851191.ECE-CHUNG2.6168.0" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/onlinewcsac/events.out.tfevents.1669851195.ECE-CHUNG2.6168.1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669851335.ECE-CHUNG2.6168.2" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669851488.ECE-CHUNG2.6168.3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669851629.ECE-CHUNG2.6168.4" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669851777.ECE-CHUNG2.6168.5" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669851926.ECE-CHUNG2.6168.6" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669852076.ECE-CHUNG2.6168.7" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669852226.ECE-CHUNG2.6168.8" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669852377.ECE-CHUNG2.6168.9" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669852528.ECE-CHUNG2.6168.10" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669852683.ECE-CHUNG2.6168.11" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669852840.ECE-CHUNG2.6168.12" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669853009.ECE-CHUNG2.6168.13" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669853170.ECE-CHUNG2.6168.14" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669853327.ECE-CHUNG2.6168.15" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669853484.ECE-CHUNG2.6168.16" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669853640.ECE-CHUNG2.6168.17" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669853803.ECE-CHUNG2.6168.18" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669853963.ECE-CHUNG2.6168.19" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669854126.ECE-CHUNG2.6168.20" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669854290.ECE-CHUNG2.6168.21" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669854476.ECE-CHUNG2.6168.22" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669854635.ECE-CHUNG2.6168.23" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669854785.ECE-CHUNG2.6168.24" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669854944.ECE-CHUNG2.6168.25" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669855096.ECE-CHUNG2.6168.26" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669855263.ECE-CHUNG2.6168.27" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669855446.ECE-CHUNG2.6168.28" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669855603.ECE-CHUNG2.6168.29" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669855766.ECE-CHUNG2.6168.30" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669855946.ECE-CHUNG2.6168.31" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669856127.ECE-CHUNG2.6168.32" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669856279.ECE-CHUNG2.6168.33" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669856430.ECE-CHUNG2.6168.34" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669856579.ECE-CHUNG2.6168.35" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669856744.ECE-CHUNG2.6168.36" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669856901.ECE-CHUNG2.6168.37" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669857055.ECE-CHUNG2.6168.38" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669857206.ECE-CHUNG2.6168.39" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669857360.ECE-CHUNG2.6168.40" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log/testwcsac/events.out.tfevents.1669857512.ECE-CHUNG2.6168.41" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/plot.py" beforeDir="false" afterPath="$PROJECT_DIR$/plot.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/vvc.py" beforeDir="false" afterPath="$PROJECT_DIR$/vvc.py" afterDir="false" />
     </list>

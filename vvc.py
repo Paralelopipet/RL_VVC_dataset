@@ -83,7 +83,8 @@ def _max_volt_vio(v):
     v_vio_max = max(v_max - 1.05 * 120, 0)
     v_vio_min = max(0.95 * 120 - v_min, 0)
     v_vio = max(v_vio_max, v_vio_min)
-    return v_vio
+    v_vio_percent = v_vio * 100 / 120
+    return v_vio_percent
 
 
 def _max_min_volt(v):
@@ -139,13 +140,13 @@ def test_vvc(env, agent, replay, scale_reward, config, epoch):
         reward_pure.append(reward)
         reward_diff.append(reward - info['baseline_reward'])
         v_max_vio.append(_max_volt_vio(v_rl))
-        if (config['algo']['algo'] == 'csac'):
+        if (config['algo']['algo'] == 'csac') or (config['algo']['algo'] == 'wcsac'):
             reward_loss_diff.append(reward_loss - info['baseline_reward_loss'])
             reward_constraint_diff.append(-reward_constraint - info['baseline_reward_constraint'])
 
         # add to tensorboard
         if iter%tensor_running == 0:
-            if (config['algo']['algo'] == 'csac'):
+            if (config['algo']['algo'] == 'csac') or (config['algo']['algo'] == 'wcsac'):
                 writer.add_scalar('reward loss diff' ,np.mean(reward_loss_diff[-tensor_running:]), epoch*env.len_test+iter)
                 writer.add_scalar('reward constraint diff' , np.mean(reward_constraint_diff[-tensor_running:]), epoch*env.len_test+iter)
             writer.add_scalar('reward diff' , np.mean(reward_diff[-tensor_running:]), epoch*env.len_test+iter)
@@ -202,7 +203,7 @@ def online_vvc(config, offline_rec):
             v_rl = info['v']
 
             # train reward and max v
-            if config['algo']['algo'] == 'csac':
+            if (config['algo']['algo'] == 'csac') or (config['algo']['algo'] == 'wcsac'):
                 reward_loss_diff.append(reward_loss - info['baseline_reward_loss'])
                 reward_constraint_diff.append(reward_constraint - info['baseline_reward_constraint'])
             reward_diff.append(reward - info['baseline_reward'])
@@ -211,7 +212,7 @@ def online_vvc(config, offline_rec):
 
             # add to tensorboard
             if iter%tensor_running == 0:
-                if (config['algo']['algo'] == 'csac'):
+                if (config['algo']['algo'] == 'csac') or (config['algo']['algo'] == 'wcsac'):
                     writer.add_scalar('reward loss diff' ,np.mean(reward_loss_diff[-tensor_running:]), epoch*env.len_online+iter)
                     writer.add_scalar('reward constraint diff' , np.mean(reward_constraint_diff[-tensor_running:]), epoch*env.len_online+iter)
                 writer.add_scalar('reward diff' , np.mean(reward_diff[-tensor_running:]), epoch*env.len_online+iter)
@@ -292,7 +293,7 @@ def test_vvc_verbose(online_res):
                     'voltage all buses': np.array(voltage_all_buses),
                     'len_step': len_step}
 
-    print(test_vvc_res)
+    #print(test_vvc_res)
 
     return test_vvc_res
 
