@@ -257,6 +257,17 @@ class Agent:
         kappa_loss.backward()
         self.kappa_optimizer.step()
 
+        # update V target and Vc target parameters
+        with torch.no_grad():
+            for p, p_tar in zip(self.Q1.parameters(), self.Q1_tar.parameters()):
+                p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+            for p, p_tar in zip(self.Q2.parameters(), self.Q2_tar.parameters()):
+                p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+            for p, p_tar in zip(self.Vc.parameters(), self.Vc_tar.parameters()):
+                p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+            for p, p_tar in zip(self.Qc.parameters(), self.Qc_tar.parameters()):
+                p_tar.data.copy_(p_tar * self.smooth + p * (1-self.smooth))
+
 
         # add to tensorboard
         writeAgent(self.log_beta, self.writer_counter, self.algo, 'log beta')
